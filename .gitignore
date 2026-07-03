@@ -1,0 +1,32 @@
+# Third-party reference material — not ours to redistribute, keep local-only
+_extracted/
+_ref/Lagrange.Core/
+_ref/LagrangeV2/
+*.AppxBundle
+
+# Build artifacts
+[Bb]in/
+[Oo]bj/
+AppPackages/
+*.appx
+*.appxsym
+*.appxupload
+*.pri
+*.ilk
+*.pdb
+
+# VS / MSBuild
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Signing / secrets — never commit real certs or tokens
+*.pfx
+*.cer
+signer.config.json
+keystore.json
+
+# Node/misc
+*.log

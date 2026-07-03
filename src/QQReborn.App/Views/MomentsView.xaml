@@ -1,0 +1,177 @@
+<UserControl
+    x:Class="QQReborn.App.Views.MomentsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:QQReborn.App.Models"
+    xmlns:mvvm="using:QQReborn.App.Mvvm"
+    Background="{StaticResource MetroBackgroundBrush}">
+
+    <UserControl.Resources>
+        <mvvm:LikedToBrushConverter x:Key="LikedToBrush" />
+
+        <!-- 一条评论 -->
+        <DataTemplate x:Key="MomentCommentTemplate" x:DataType="models:MomentComment">
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Author}" FontSize="13" FontWeight="SemiLight"
+                           Foreground="{StaticResource MetroAccentBrush}" VerticalAlignment="Top" />
+                <TextBlock Grid.Column="1" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap"
+                           Margin="6,0,0,0" Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- 一条动态卡片 -->
+        <DataTemplate x:Key="MomentItemTemplate" x:DataType="models:Moment">
+            <Grid Margin="0,0,20,0" Padding="0,16,0,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- 头部：方形头像 + 昵称 + 时间 -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Rectangle Grid.Column="0" Width="46" Height="46" VerticalAlignment="Top">
+                        <Rectangle.Fill>
+                            <ImageBrush ImageSource="{Binding AuthorAvatarPath}" Stretch="UniformToFill" />
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding AuthorName}" FontSize="17" FontWeight="SemiLight"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding TimeText}" FontSize="12" Margin="0,3,0,0"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- 正文 -->
+                <TextBlock Grid.Row="1" Text="{Binding Text}" FontSize="15" TextWrapping="Wrap"
+                           LineHeight="22" Margin="58,10,0,0"
+                           Foreground="{StaticResource MetroPrimaryTextBrush}"
+                           Visibility="{Binding HasText, Converter={StaticResource BoolToVisibility}}" />
+
+                <!-- 媒体区：图片 / 视频 -->
+                <StackPanel Grid.Row="2" Margin="58,12,0,0">
+                    <!-- 图片（仅当有图） -->
+                    <Grid Visibility="{Binding HasImages, Converter={StaticResource BoolToVisibility}}">
+                        <!-- 单图：大图 -->
+                        <Image Source="{Binding SingleImagePath}" Stretch="UniformToFill"
+                               Width="220" Height="220" HorizontalAlignment="Left"
+                               Visibility="{Binding IsSingleImage, Converter={StaticResource BoolToVisibility}}" />
+                        <!-- 多图：横向小图条 -->
+                        <ItemsControl ItemsSource="{Binding ImagePaths}"
+                                      Visibility="{Binding IsMultiImage, Converter={StaticResource BoolToVisibility}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Rectangle Width="92" Height="92" Margin="0,0,6,0">
+                                        <Rectangle.Fill>
+                                            <ImageBrush ImageSource="{Binding}" Stretch="UniformToFill" />
+                                        </Rectangle.Fill>
+                                    </Rectangle>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Grid>
+                    <!-- 视频海报（点击全屏播放，避免每项实例化 MediaElement） -->
+                    <Grid Width="240" Height="160" Margin="0,8,0,0" HorizontalAlignment="Left"
+                          Background="#FF000000" Tag="{Binding VideoPath}" Tapped="VideoPoster_Tapped"
+                          Visibility="{Binding HasVideo, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="▶" FontSize="40" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <TextBlock Text="点击播放视频" FontSize="12"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,8" />
+                    </Grid>
+                </StackPanel>
+
+                <!-- 底部：点赞 / 评论 -->
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="58,14,0,0">
+                    <Button Background="Transparent" BorderThickness="0" Padding="0" Margin="0,0,28,0"
+                            Click="LikeButton_Click" Tag="{Binding}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="♥" FontSize="17" VerticalAlignment="Center"
+                                       Foreground="{Binding IsLiked, Converter={StaticResource LikedToBrush}}" />
+                            <TextBlock Text="{Binding LikeText}" FontSize="14" Margin="7,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{Binding IsLiked, Converter={StaticResource LikedToBrush}}" />
+                        </StackPanel>
+                    </Button>
+                    <Button Background="Transparent" BorderThickness="0" Padding="0"
+                            Click="CommentButton_Click" Tag="{Binding}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="💬" FontSize="15" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding CommentCountText}" FontSize="14" Margin="7,0,0,0" VerticalAlignment="Center"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- 评论面板（仅当有评论） -->
+                <Border Grid.Row="4" Background="{StaticResource MetroPanelBrush}" Margin="58,12,0,0" Padding="12,10"
+                        Visibility="{Binding HasComments, Converter={StaticResource BoolToVisibility}}">
+                    <ItemsControl ItemsSource="{Binding Comments}" ItemTemplate="{StaticResource MomentCommentTemplate}" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 发表动态 -->
+        <StackPanel Grid.Row="0" Margin="0,4,20,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="PublishBox" PlaceholderText="这一刻的想法…"
+                         Background="{StaticResource MetroPanelBrush}" BorderThickness="0"
+                         Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="🖼" FontSize="18" Click="PickImages_Click"
+                        Background="Transparent" BorderThickness="0" Padding="8" Margin="4,0,0,0" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Content="🎬" FontSize="18" Click="PickVideo_Click"
+                        Background="Transparent" BorderThickness="0" Padding="8" VerticalAlignment="Center" />
+                <Button Grid.Column="3" Content="发表" Click="PublishButton_Click"
+                        Background="{StaticResource MetroAccentBrush}" Foreground="White"
+                        BorderThickness="0" Margin="4,0,0,0" Padding="16,10" VerticalAlignment="Center" />
+            </Grid>
+            <!-- 已选附件预览 -->
+            <StackPanel x:Name="AttachPreview" Orientation="Horizontal" Margin="0,8,0,0" Visibility="Collapsed" />
+        </StackPanel>
+
+        <!-- 动态列表 -->
+        <ListView Grid.Row="1" x:Name="FeedList"
+                  ItemsSource="{Binding Feed}"
+                  ItemTemplate="{StaticResource MomentItemTemplate}"
+                  SelectionMode="None"
+                  Padding="0,0,0,16">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="MinHeight" Value="0" />
+                    <Setter Property="Margin" Value="0" />
+                </Style>
+            </ListView.ItemContainerStyle>
+        </ListView>
+    </Grid>
+</UserControl>

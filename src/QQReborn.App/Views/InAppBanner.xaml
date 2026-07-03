@@ -1,0 +1,33 @@
+<UserControl
+    x:Class="QQReborn.App.Views.InAppBanner"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Visibility="Collapsed">
+
+    <Border x:Name="Bar" Background="{StaticResource MetroPanelBrush}" CornerRadius="4"
+            Margin="12,10,12,0" Height="64" VerticalAlignment="Top"
+            Tapped="Bar_Tapped">
+        <Grid Margin="12,0,14,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 方形头像 -->
+            <Rectangle Grid.Column="0" Width="44" Height="44" VerticalAlignment="Center">
+                <Rectangle.Fill>
+                    <ImageBrush x:Name="AvatarBrush" Stretch="UniformToFill" />
+                </Rectangle.Fill>
+            </Rectangle>
+
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+                <TextBlock x:Name="TitleText" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource MetroPrimaryTextBrush}"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="PreviewText" FontSize="13" FontWeight="Light"
+                           Foreground="{StaticResource MetroSecondaryTextBrush}"
+                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>
