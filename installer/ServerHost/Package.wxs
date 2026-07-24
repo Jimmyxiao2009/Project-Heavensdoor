@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  QQ Reborn Server Host (管家) — per-machine x64 MSI.
+  Built by tools/build-server-msi.ps1 (requires WiX 5:  dotnet tool install -g wix).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+
+  <Package Name="QQ Reborn 管家"
+           Manufacturer="QQ Reborn"
+           Version="0.1.0.2"
+           UpgradeCode="8F2B6A41-3D2E-4C7A-9B1F-2E5C7A0D9B12"
+           Scope="perMachine"
+           Language="1033"
+           InstallerVersion="500">
+
+    <SummaryInformation
+        Description="QQ Reborn 本机网关管家（NapCat + RealServer）"
+        Manufacturer="QQ Reborn" />
+
+    <MajorUpgrade
+        DowngradeErrorMessage="已安装更新版本的 [ProductName]，无法降级。"
+        Schedule="afterInstallInitialize" />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- ARP (控制面板「程序和功能」) -->
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Jimmyxiao2009/Project-Heavensdoor" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/Jimmyxiao2009/Project-Heavensdoor#readme" />
+    <Property Id="ARPCOMMENTS" Value="Lumia Shell 用的本机 QQ 网关管家。需先安装并登录 NTQQ + NapCat。" />
+
+    <Icon Id="AppIcon" SourceFile="!(bindpath.Publish)\QQReborn.ServerHost.exe" />
+
+    <Feature Id="Main"
+             Title="QQ Reborn 管家"
+             Description="安装管家程序与内置 RealServer 网关"
+             Level="1"
+             ConfigurableDirectory="INSTALLFOLDER"
+             AllowAbsent="no">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="QQ Reborn Server Host" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuFolder" Name="QQ Reborn" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
+
+    <!-- Harvest publish\ServerHost (exe + RealServer\**), skip symbols -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="!(bindpath.Publish)\**">
+        <Exclude Files="**\*.pdb" />
+      </Files>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut"
+               Directory="AppMenuFolder"
+               Guid="B2C3D4E5-F6A7-4890-B123-456789ABCDEF">
+      <Shortcut Id="AppStartMenuShortcut"
+                Name="QQ Reborn 管家"
+                Description="启动 NapCat 本机网关"
+                Target="[INSTALLFOLDER]QQReborn.ServerHost.exe"
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="AppIcon" />
+      <RemoveFolder Id="RemoveAppMenuFolder" Directory="AppMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKLM"
+                     Key="Software\QQReborn\ServerHost"
+                     Name="InstallDir"
+                     Type="string"
+                     Value="[INSTALLFOLDER]"
+                     KeyPath="yes" />
+    </Component>
+
+    <Component Id="DesktopShortcut"
+               Directory="DesktopFolder"
+               Guid="C3D4E5F6-A7B8-4901-C234-56789ABCDEF0">
+      <Shortcut Id="AppDesktopShortcut"
+                Name="QQ Reborn 管家"
+                Description="启动 NapCat 本机网关"
+                Target="[INSTALLFOLDER]QQReborn.ServerHost.exe"
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="AppIcon" />
+      <RegistryValue Root="HKLM"
+                     Key="Software\QQReborn\ServerHost"
+                     Name="DesktopShortcut"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+  </Package>
+</Wix>

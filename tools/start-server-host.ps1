@@ -25,12 +25,14 @@ if ($Publish) {
     if ($LASTEXITCODE -ne 0) { throw "publish failed" }
 
     $rsOut = Join-Path $out "RealServer"
-    Write-Host "Publishing RealServer to $rsOut ..."
+    Write-Host "Publishing RealServer (self-contained) to $rsOut ..."
+    # Self-contained so installed/portable copies don't require a shared .NET runtime.
     dotnet publish (Join-Path $root "server\QQReborn.RealServer\QQReborn.RealServer.csproj") `
-        -c Release -r win-x64 --self-contained false -o $rsOut -v q
+        -c Release -r win-x64 --self-contained true -o $rsOut -v q
 
     Write-Host ""
     Write-Host "Done. Run: $out\QQReborn.ServerHost.exe"
+    Write-Host "MSI: powershell -ExecutionPolicy Bypass -File tools\build-server-msi.ps1"
     Start-Process (Join-Path $out "QQReborn.ServerHost.exe")
     exit 0
 }

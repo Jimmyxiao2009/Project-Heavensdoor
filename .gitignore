@@ -20,6 +20,12 @@ AppPackages/
 *.ilk
 *.pdb
 
+# Publish / installer outputs (upload via GitHub Releases, not git)
+publish/
+.wix/
+installer/**/_build/
+installer/**/_try/
+
 # Shell build artifacts (UWP)
 shell/**/[Bb]in/
 shell/**/[Oo]bj/
