@@ -4,6 +4,11 @@ _ref/Lagrange.Core/
 _ref/LagrangeV2/
 *.AppxBundle
 
+# Large reverse / dump trees (local only)
+_reverse/
+out_server/
+.reasonix/
+
 # Build artifacts
 [Bb]in/
 [Oo]bj/
@@ -14,6 +19,31 @@ AppPackages/
 *.pri
 *.ilk
 *.pdb
+
+# Shell build artifacts (UWP)
+shell/**/[Bb]in/
+shell/**/[Oo]bj/
+shell/**/AppPackages/
+shell/**/*.user
+
+# Server build artifacts
+server/**/[Bb]in/
+server/**/[Oo]bj/
+server/**/run_live*.log
+server/**/qzone_*.txt
+server/**/qzone_*.json
+server/**/conv_prefs_*.json
+server/**/crash_*.log
+server/**/host_*.log
+server/**/manual_*.log
+server/**/stdout.log
+server/**/stderr.log
+
+# Tools runtime / logs
+tools/**/bin/
+tools/**/obj/
+tools/runtime_logs/
+tools/**/*.log
 
 # VS / MSBuild
 .vs/
@@ -27,6 +57,9 @@ AppPackages/
 *.cer
 signer.config.json
 keystore.json
+*.local.md
+tools/LocalSignProxy/appsettings.json
+ACCOUNT-NOTES.local.md
 
 # Node/misc
 *.log

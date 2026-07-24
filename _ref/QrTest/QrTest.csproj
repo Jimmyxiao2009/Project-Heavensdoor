@@ -13,6 +13,8 @@
         <!-- P3: validate QR login against LagrangeV2 (the maintained successor).
              v1 _ref/Lagrange.Core is ARCHIVED + its public sign URL is dead -> do NOT use it. -->
         <ProjectReference Include="..\LagrangeV2\Lagrange.Core\Lagrange.Core.csproj" />
+        <!-- TokenSignProvider now lives here, shared with QQReborn.RealServer. -->
+        <ProjectReference Include="..\..\server\QQReborn.Signing\QQReborn.Signing.csproj" />
     </ItemGroup>
 
     <ItemGroup>

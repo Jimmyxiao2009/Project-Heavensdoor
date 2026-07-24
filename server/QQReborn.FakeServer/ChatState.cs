@@ -28,10 +28,11 @@ public class ChatState
 
     public ChatState()
     {
-        _conversations.Add(Conv("c1", "Friend", "张三", FriendAvatar, "在吗？晚上一起吃饭", -3, 2));
-        _conversations.Add(Conv("c2", "Group", "WP 钉子户交流群", GroupAvatar, "李四：Lumia 950 永不为奴", -25, 9));
+        _conversations.Add(Conv("c1", "Friend", "张三", FriendAvatar, "在吗？晚上一起吃饭", -3, 2, isPinned: true));
+        _conversations.Add(Conv("c2", "Group", "WP 钉子户交流群", GroupAvatar, "李四：Lumia 950 永不为奴", -25, 9,
+            announcement: "本群禁止安利安卓/iOS，违者移出群聊。", isMuted: true));
         _conversations.Add(Conv("c3", "Friend", "老妈", FriendAvatar, "记得多穿点衣服", -120, 0));
-        _conversations.Add(Conv("c4", "Group", "家庭群", GroupAvatar, "[图片]", -1440, 0));
+        _conversations.Add(Conv("c4", "Group", "家庭群", GroupAvatar, "[图片]", -1440, 0, announcement: ""));
         _conversations.Add(Conv("c5", "Friend", "QQ 团队", FriendAvatar, "欢迎使用 QQ Reborn", -4320, 0));
 
         _contacts.Add(Contact(20001, "张三", "今天也要加油", true));
@@ -77,6 +78,7 @@ public class ChatState
         ["nickname"] = "Jimmy",
         ["avatarPath"] = SelfAvatar,
         ["signature"] = "WP 永不为奴",
+        ["level"] = 42,
     };
 
     public JsonArray GetConversations()
@@ -84,9 +86,42 @@ public class ChatState
         lock (_gate)
         {
             var arr = new JsonArray();
-            foreach (var c in _conversations.OrderByDescending(c => (string)c["lastTime"]!))
+            foreach (var c in _conversations
+                .OrderByDescending(c => c["isPinned"] is JsonValue pv && pv.TryGetValue<bool>(out var pb) && pb)
+                .ThenByDescending(c => (string)c["lastTime"]!))
                 arr.Add(Clone(c));
             return arr;
+        }
+    }
+
+    /// <summary>Local pin/mute toggle (demo has no Tencent sync). Null flag = leave alone.</summary>
+    public JsonObject SetConversationFlags(string conversationId, bool? isPinned, bool? isMuted)
+    {
+        if (string.IsNullOrEmpty(conversationId))
+            return new JsonObject { ["ok"] = false, ["reason"] = "invalid-conversation" };
+        if (isPinned == null && isMuted == null)
+            return new JsonObject { ["ok"] = false, ["reason"] = "no-flags" };
+
+        lock (_gate)
+        {
+            var conv = _conversations.FirstOrDefault(c => (string)c["id"]! == conversationId);
+            if (conv == null)
+                return new JsonObject { ["ok"] = false, ["reason"] = "unknown-conversation" };
+
+            static bool ReadBool(JsonObject o, string k)
+                => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) && b;
+
+            var pinned = isPinned ?? ReadBool(conv, "isPinned");
+            var muted = isMuted ?? ReadBool(conv, "isMuted");
+            conv["isPinned"] = pinned;
+            conv["isMuted"] = muted;
+            return new JsonObject
+            {
+                ["ok"] = true,
+                ["conversationId"] = conversationId,
+                ["isPinned"] = pinned,
+                ["isMuted"] = muted,
+            };
         }
     }
 
@@ -142,8 +177,82 @@ public class ChatState
         }
     }
 
+    /// <summary>Deterministic fake profile, consistent with the seeded contacts/members above
+    /// (same names, same demo signatures where one exists) so the contact-detail page reads as
+    /// plausible instead of generic placeholder text. Unknown uins still get a stable-looking
+    /// profile derived from the uin itself rather than an error, since RealServer's honest
+    /// failure path (uin not found on Tencent's side) doesn't have a demo-friendly equivalent here.</summary>
+    public JsonObject GetUserProfile(long uin)
+    {
+        lock (_gate)
+        {
+            var contact = _contacts.FirstOrDefault(c => (long)c["uin"]! == uin);
+            var name = contact != null ? (string)contact["name"]! : $"用户{uin}";
+            var signature = contact != null ? (string?)contact["signature"] : "这个人很懒，什么都没留下";
+            return new JsonObject
+            {
+                ["uin"] = uin,
+                ["nickname"] = name,
+                ["signature"] = string.IsNullOrEmpty(signature) ? null : signature,
+                ["level"] = (int)(uin % 60) + 1,
+                ["gender"] = uin % 2 == 0 ? "female" : "male",
+                ["age"] = (int)(uin % 30) + 15,
+                ["country"] = "中国",
+                ["city"] = "上海",
+            };
+        }
+    }
+
+    /// <summary>Demo backend has no deeper transcript to page into -- seed data is already the
+    /// full history for every conversation -- so this honestly reports nothing more to load
+    /// rather than fabricating older messages that would never appear again after a refresh.</summary>
+    public JsonObject GetEarlierMessages(string convId, string? beforeId, int count)
+        => new() { ["messages"] = new JsonArray(), ["hasMore"] = false };
+
+    /// <summary>Removes the message from the in-memory transcript and reports success --
+    /// there's no time-window/ownership restriction to simulate here, this is demo data.</summary>
+    public JsonObject RecallMessage(string convId, string messageId)
+    {
+        lock (_gate)
+        {
+            if (_messages.TryGetValue(convId, out var list))
+                list.RemoveAll(m => (string)m["id"]! == messageId);
+            return new JsonObject { ["recalled"] = true, ["reason"] = null };
+        }
+    }
+
+    /// <summary>Removes the conversation (and its transcript/member list) the same way a real
+    /// GroupQuit would drop it from getConversations. Friend conversations have no "quit"
+    /// concept, mirroring RealServer's honest rejection.</summary>
+    public JsonObject QuitGroup(string convId)
+    {
+        lock (_gate)
+        {
+            var conv = _conversations.FirstOrDefault(c => (string)c["id"]! == convId);
+            if (conv == null || (string)conv["kind"]! != "Group")
+                return new JsonObject { ["left"] = false, ["reason"] = "not-a-group" };
+
+            _conversations.Remove(conv);
+            _messages.Remove(convId);
+            _groupMembers.Remove(convId);
+            return new JsonObject { ["left"] = true, ["reason"] = null };
+        }
+    }
+
+    /// <summary>Demo backend has no real Tencent nudge to send -- always reports success so the
+    /// UI flow (nudge animation/toast) can be exercised without a real account.</summary>
+    public JsonObject SendNudge(string convId, long targetUin) => new() { ["sent"] = true };
+
+    /// <summary>Demo backend has no real Tencent avatar upload -- always reports success.</summary>
+    public JsonObject SetAvatar(string imageBase64) => new() { ["ok"] = true };
+
+    // getMediaUrl has no ChatState method: the demo backend has no real media CDN behind it,
+    // so Program.cs's dispatch reports the wire-level "no-media" error directly (see there)
+    // rather than routing through a data-returning method for an always-error case.
+
     public JsonObject Send(string convId, string contentType, string? text, string? imagePath, string? audioPath, int voiceSeconds,
-        string? placeName = null, string? address = null, string? thumb = null)
+        string? placeName = null, string? address = null, string? thumb = null, string? replyToId = null,
+        string? imageBase64 = null)
     {
         var preview = contentType switch
         {
@@ -153,6 +262,13 @@ public class ChatState
             "Location" => "[位置]",
             _ => text ?? "",
         };
+        // Real client ships chat photos as base64 (phone LocalFolder paths aren't readable
+        // by the PC-side server). Embed as a data URI so the demo bubble can still render.
+        if (string.IsNullOrEmpty(imagePath) && !string.IsNullOrEmpty(imageBase64)
+            && (contentType == "Image" || contentType == "Sticker"))
+        {
+            imagePath = "data:image/jpeg;base64," + imageBase64;
+        }
         var msg = Message(convId, "我", 10001, SelfAvatar, "Outgoing", contentType, text ?? preview, imagePath, audioPath, voiceSeconds);
         if (placeName != null) msg["placeName"] = placeName;
         if (address != null) msg["address"] = address;
@@ -160,6 +276,21 @@ public class ChatState
         lock (_gate)
         {
             if (!_messages.TryGetValue(convId, out var list)) { list = new(); _messages[convId] = list; }
+            // Mirror RealServer's behavior (BotSessionManager.SendAsync): resolve the quoted
+            // message by id within this conversation and stamp its sender/text onto the new
+            // message so the reply-quote box survives a re-fetch of the conversation (getMessages),
+            // not just the immediate optimistic render on the sending client.
+            if (!string.IsNullOrEmpty(replyToId))
+            {
+                var quoted = list.FirstOrDefault(m => (string)m["id"]! == replyToId);
+                if (quoted != null)
+                {
+                    var quotedSender = (string?)quoted["senderName"];
+                    var quotedText = (string?)quoted["text"];
+                    if (!string.IsNullOrEmpty(quotedSender)) msg["replyToSender"] = quotedSender;
+                    if (!string.IsNullOrEmpty(quotedText)) msg["replyToText"] = quotedText;
+                }
+            }
             list.Add(msg);
             BumpConversation(convId, preview);
         }
@@ -224,7 +355,8 @@ public class ChatState
 
     // ---- builders ----
 
-    private JsonObject Conv(string id, string kind, string title, string avatar, string preview, int minsAgo, int unread) => new()
+    private JsonObject Conv(string id, string kind, string title, string avatar, string preview, int minsAgo, int unread,
+        string? announcement = null, bool isPinned = false, bool isMuted = false) => new()
     {
         ["id"] = id,
         ["kind"] = kind,
@@ -233,6 +365,9 @@ public class ChatState
         ["preview"] = preview,
         ["lastTime"] = DateTimeOffset.UtcNow.AddMinutes(minsAgo).ToString("o"),
         ["unread"] = unread,
+        ["announcement"] = announcement,
+        ["isPinned"] = isPinned,
+        ["isMuted"] = isMuted,
     };
 
     private JsonObject Contact(long uin, string name, string sig, bool online) => new()

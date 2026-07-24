@@ -1,0 +1,14 @@
+<Application x:Class="QQReborn.ServerHost.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+  <Application.Resources>
+    <SolidColorBrush x:Key="Bg" Color="#FF0E0E0E"/>
+    <SolidColorBrush x:Key="Panel" Color="#FF1A1A1A"/>
+    <SolidColorBrush x:Key="Text" Color="#FFFFFFFF"/>
+    <SolidColorBrush x:Key="Muted" Color="#FF8A8A8A"/>
+    <SolidColorBrush x:Key="Accent" Color="#FF12B7F5"/>
+    <SolidColorBrush x:Key="Ok" Color="#FF3DDC84"/>
+    <SolidColorBrush x:Key="Bad" Color="#FFFA5151"/>
+  </Application.Resources>
+</Application>

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -6,7 +7,7 @@ using Lagrange.Core.Common;
 using Lagrange.Core.Common.Interface;
 using Lagrange.Core.Events.EventArgs;
 using Net.Codecrete.QrCodeGenerator;
-using QqReborn.QrTest;
+using QQReborn.Signing;
 
 // =====================================================================================
 // QQ-Reborn P3: QR-login chain check against LagrangeV2 (the maintained successor).
@@ -104,7 +105,11 @@ bot.EventInvoker.RegisterEvent<BotSMSEvent>((_, e) =>
     Console.WriteLine($"[SMS] {e.ToEventMessage()}"));
 
 bot.EventInvoker.RegisterEvent<BotMessageEvent>((_, e) =>
-    Console.WriteLine($"[MSG] from {e.Message.Contact}: {e.Message.Entities.Count} entit(ies)"));
+{
+    var preview = string.Join(" ", e.Message.Entities
+        .Select(ent => ent is Lagrange.Core.Message.Entities.TextEntity t ? t.Text : $"[{ent.GetType().Name}]"));
+    Console.WriteLine($"[MSG] from {e.Message.Contact.Nickname}({e.Message.Contact.Uin}): {preview}");
+});
 
 Console.WriteLine("\nCalling Login() (fetches QR, then polls until you scan + confirm)...");
 bool ok;
@@ -132,8 +137,96 @@ if (!ok)
 }
 
 Console.WriteLine("Login OK. Staying online -- send yourself a QQ message to test receive. Ctrl+C to quit.");
+
+// ==== Channel SSO SendPacket test v2 ====
+Console.WriteLine("\n--- Channel SSO SendPacket test v2 ---");
+try
+{
+    // Helper: encode a simple protobuf with a few varint fields
+    static byte[] Pb(params (int field, ulong value)[] fields)
+    {
+        using var ms = new MemoryStream();
+        foreach (var (fn, val) in fields)
+        {
+            // tag
+            ulong tag = (ulong)(fn << 3 | 0);
+            while (tag > 0x7F) { ms.WriteByte((byte)((tag & 0x7F) | 0x80)); tag >>= 7; }
+            ms.WriteByte((byte)(tag & 0x7F));
+            // varint value
+            ulong v = val;
+            while (v > 0x7F) { ms.WriteByte((byte)((v & 0x7F) | 0x80)); v >>= 7; }
+            ms.WriteByte((byte)(v & 0x7F));
+        }
+        return ms.ToArray();
+    }
+
+    // Decode helper
+    static void DumpProto(byte[] data, string label)
+    {
+        Console.WriteLine($"  {label} ({data.Length}B):");
+        int pos = 0;
+        while (pos < data.Length && pos < 500)
+        {
+            ulong tag = 0; int shift = 0;
+            while (pos < data.Length) { byte b = data[pos++]; tag |= (ulong)(b & 0x7F) << shift; if ((b & 0x80) == 0) break; shift += 7; }
+            int fn = (int)(tag >> 3), wt = (int)(tag & 7);
+            if (wt == 0) { ulong v = 0; shift = 0; while (pos < data.Length) { byte b = data[pos++]; v |= (ulong)(b & 0x7F) << shift; if ((b & 0x80) == 0) break; shift += 7; } Console.WriteLine($"    f{fn}: {v}"); }
+            else if (wt == 2) { ulong len = 0; shift = 0; while (pos < data.Length) { byte b = data[pos++]; len |= (ulong)(b & 0x7F) << shift; if ((b & 0x80) == 0) break; shift += 7; } var chunk = data[pos..(int)(pos+(int)len)]; pos += (int)len; try { var s = System.Text.Encoding.UTF8.GetString(chunk); if (s.All(c => !char.IsControl(c) || c=='\n')) Console.WriteLine($"    f{fn}: \"{s[..Math.Min(60,s.Length)]}\""); else Console.WriteLine($"    f{fn}: bytes[{len}]"); } catch { Console.WriteLine($"    f{fn}: bytes[{len}]"); } }
+            else break;
+        }
+    }
+
+    async Task Probe(string cmd, byte[] body, string desc)
+    {
+        try
+        {
+            var packet = new Lagrange.Core.Common.Entity.BotSsoPacket(cmd, body);
+            var resp = await bot.SendPacket(packet);
+            Console.WriteLine($"\n[{cmd}] {desc} → retCode={resp.RetCode}, seq={resp.Sequence}");
+            if (resp.Data.Length > 0) DumpProto(resp.Data.ToArray(), "Response");
+            else Console.WriteLine("  (empty response)");
+        }
+        catch (Exception ex) { Console.WriteLine($"  ERROR: {ex.Message}"); }
+    }
+
+    // 1. SyncFirstView — decode the known-good response
+    Console.WriteLine("\n=== 1. SyncFirstView (known working) ===");
+    await Probe("trpc.group_pro.synclogic.SyncLogic.SyncFirstView", [], "empty body");
+
+    // Only test slash-format commands (pd.qq.com style) and working group_pro commands
+    Console.WriteLine("\n=== Slash-format & group_pro probing ===");
+    ulong knownGuild = 144115218702922042;
+
+    // These commands are in the whitelist but haven't been tested
+    var probes = new (string cmd, byte[] body, string desc)[]
+    {
+        // group_pro with slashes (pd.qq.com HTTP format)
+        ("trpc.group_pro.notice_list.Handler/GetList", Pb((1,knownGuild)), "notice_list.GetList"),
+        ("trpc.group_pro.cmd0xf5b.GetAggregationalMemberList/HandleProcess", Pb((1,knownGuild)), "GetAggregationalMemberList"),
+        ("trpc.group_pro.cmd0xf89.GetGroupProUserHeadPortrait/HandleProcess", Pb((1,knownGuild)), "GetGroupProUserHeadPortrait"),
+        ("trpc.group_pro.member_search_interface.Handler/HandleProcess6", Pb((1,knownGuild)), "member_search"),
+        // Try QChannel commands WITHOUT prefix, WITH slash for method
+        ("trpc.qchannel.commreader.ComReader/GetGuildList", [], "qchannel/GetGuildList empty"),
+        ("trpc.qchannel.commreader.ComReader/GetGuildList", Pb((1,0),(2,20)), "qchannel/GetGuildList f1=0,f2=20"),
+        ("trpc.qchannel.commreader.ComReader/GetGuildFeeds", Pb((1,knownGuild)), "qchannel/GetGuildFeeds"),
+        ("trpc.qchannel.commreader.ComReader/GetNotices1", Pb((1,knownGuild)), "qchannel/GetNotices1"),
+    };
+
+    foreach (var (cmd, body, desc) in probes)
+    {
+        await Probe(cmd, body, desc);
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Channel SSO test failed: {ex}");
+}
+Console.WriteLine("--- end channel SSO test ---\n");
+
+Console.WriteLine("Tests done. Exiting.");
 AppDomain.CurrentDomain.ProcessExit += (_, _) => bot.Dispose();
-await Task.Delay(Timeout.Infinite);
+bot.Dispose();
+return;
 
 
 // --- helpers -------------------------------------------------------------------------

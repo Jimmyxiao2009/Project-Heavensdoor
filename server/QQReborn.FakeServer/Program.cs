@@ -98,12 +98,23 @@ string? Handle(string text)
     // not throw and tear down the socket. Returns null/0 instead.
     static string? S(JsonObject o, string k) => o[k] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
     static double N(JsonObject o, string k) => o[k] is JsonValue v && v.TryGetValue<double>(out var d) ? d : 0;
+    static bool? B(JsonObject o, string k) => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : null;
 
     var id = S(req, "id") ?? "";
     var type = S(req, "type") ?? "";
 
     try
     {
+        // getMediaUrl is the one case that needs to report a wire-level "error" instead of a
+        // data payload (demo backend has no real media CDN behind it -- see ChatState.GetMediaUrl),
+        // so it's special-cased ahead of the data-only switch below rather than reshaping every
+        // other case into a (data, error) tuple for one outlier.
+        if (type == "getMediaUrl")
+        {
+            var errResp = new JsonObject { ["id"] = id, ["type"] = "result", ["data"] = null, ["error"] = "no-media" };
+            return errResp.ToJsonString();
+        }
+
         JsonNode? data = type switch
         {
             "getSelf" => state.GetSelf(),
@@ -113,6 +124,15 @@ string? Handle(string text)
             "getGroupMembers" => state.GetGroupMembers(S(req, "conversationId") ?? ""),
             "getFriendRequests" => state.GetFriendRequests(),
             "acceptFriendRequest" => state.AcceptFriendRequest((long)N(req, "uin")),
+            "getUserProfile" => state.GetUserProfile((long)N(req, "uin")),
+            "getEarlierMessages" => state.GetEarlierMessages(
+                S(req, "conversationId") ?? "", S(req, "beforeId"), (int)N(req, "count")),
+            "recallMessage" => state.RecallMessage(S(req, "conversationId") ?? "", S(req, "messageId") ?? ""),
+            "quitGroup" => state.QuitGroup(S(req, "conversationId") ?? ""),
+            "nudge" => state.SendNudge(S(req, "conversationId") ?? "", (long)N(req, "targetUin")),
+            "setAvatar" => state.SetAvatar(S(req, "imageBase64") ?? ""),
+            "setConversationFlags" => state.SetConversationFlags(
+                S(req, "conversationId") ?? "", B(req, "isPinned"), B(req, "isMuted")),
             "send" => state.Send(
                 S(req, "conversationId") ?? "",
                 S(req, "contentType") ?? "Text",
@@ -122,7 +142,9 @@ string? Handle(string text)
                 (int)N(req, "voiceSeconds"),
                 S(req, "placeName"),
                 S(req, "address"),
-                S(req, "thumb")),
+                S(req, "thumb"),
+                S(req, "replyToId"),
+                S(req, "imageBase64")),
             _ => null,
         };
 
@@ -132,7 +154,9 @@ string? Handle(string text)
     catch (Exception ex)
     {
         Console.WriteLine("[!] Handle(" + type + "): " + ex);
-        var err = new JsonObject { ["id"] = id, ["type"] = "result", ["data"] = null };
+        // Same error envelope as QQReborn.RealServer: the client fails the pending request
+        // with this message instead of choking on JsonObject.Parse("null").
+        var err = new JsonObject { ["id"] = id, ["type"] = "result", ["data"] = null, ["error"] = ex.Message };
         return err.ToJsonString();
     }
 }
