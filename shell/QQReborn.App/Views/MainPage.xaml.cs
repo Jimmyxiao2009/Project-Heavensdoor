@@ -123,6 +123,28 @@ namespace QQReborn.App.Views
             Frame.Navigate(typeof(SearchPage), null);
         }
 
+        private void SearchAppBar_Click(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(SearchPage), null);
+        }
+
+        private async void RefreshAppBar_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                await _vm.SoftRefreshAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Refresh failed: " + ex);
+            }
+        }
+
+        private void QuickPanelAppBar_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleQuickPanel();
+        }
+
         private void ContactList_ItemClick(object sender, ItemClickEventArgs e)
         {
             if (e.ClickedItem is Contact contact)
@@ -132,7 +154,7 @@ namespace QQReborn.App.Views
         }
 
 
-        private double _panelY;
+        private double _panelY = -280;
 
         private void Title_Click(object sender, RoutedEventArgs e)
         {
@@ -179,11 +201,14 @@ namespace QQReborn.App.Views
             }
         }
 
+        // Quick panel height must match MainPage.xaml Border Height / initial TranslateY.
+        private const double QuickPanelHeight = 280;
+
         private void ResetQuickPanelState()
         {
             var panelTransform = QuickPanel?.RenderTransform as CompositeTransform;
             var pageTransform = PageContent?.RenderTransform as CompositeTransform;
-            if (panelTransform != null) panelTransform.TranslateY = -300;
+            if (panelTransform != null) panelTransform.TranslateY = -QuickPanelHeight;
             if (pageTransform != null)
             {
                 pageTransform.TranslateY = 0;
@@ -192,7 +217,7 @@ namespace QQReborn.App.Views
             }
             if (QuickPanel != null) QuickPanel.Visibility = Visibility.Collapsed;
             if (QuickDimmer != null) QuickDimmer.Visibility = Visibility.Collapsed;
-            _panelY = -300;
+            _panelY = -QuickPanelHeight;
         }
 
         private void AnimateQuickPanel(bool open)
@@ -206,13 +231,13 @@ namespace QQReborn.App.Views
 
             var panelAnimation = new DoubleAnimation
             {
-                To = open ? 0 : -300,
+                To = open ? 0 : -QuickPanelHeight,
                 Duration = new Duration(TimeSpan.FromMilliseconds(240)),
                 EnableDependentAnimation = true
             };
             var pageYAnimation = new DoubleAnimation
             {
-                To = open ? 52 : 0,
+                To = open ? 48 : 0,
                 Duration = new Duration(TimeSpan.FromMilliseconds(240)),
                 EnableDependentAnimation = true
             };
@@ -245,7 +270,7 @@ namespace QQReborn.App.Views
             board.Children.Add(scaleYAnimation);
             board.Completed += (s, e) =>
             {
-                _panelY = open ? 0 : -300;
+                _panelY = open ? 0 : -QuickPanelHeight;
                 if (!open)
                 {
                     QuickPanel.Visibility = Visibility.Collapsed;
@@ -259,21 +284,21 @@ namespace QQReborn.App.Views
         {
             var dy = e.Cumulative.Translation.Y;
             if (dy <= 0 && _panelY <= 0) return;
-            _panelY = Math.Max(-300, Math.Min(0, -300 + dy));
+            _panelY = Math.Max(-QuickPanelHeight, Math.Min(0, -QuickPanelHeight + dy));
             QuickPanel.Visibility = Visibility.Visible;
             QuickDimmer.Visibility = Visibility.Visible;
             if (QuickPanel.RenderTransform is CompositeTransform transform)
                 transform.TranslateY = _panelY;
             if (PageContent.RenderTransform is CompositeTransform pageTransform)
             {
-                pageTransform.TranslateY = Math.Max(0, 52 + _panelY * 0.17);
+                pageTransform.TranslateY = Math.Max(0, 48 + _panelY * 0.17);
                 pageTransform.ScaleX = pageTransform.ScaleY = 0.965;
             }
         }
 
         private void Header_ManipulationCompleted(object sender, ManipulationCompletedRoutedEventArgs e)
         {
-            var open = _panelY > -150;
+            var open = _panelY > -(QuickPanelHeight * 0.5);
             AnimateQuickPanel(open);
         }
 

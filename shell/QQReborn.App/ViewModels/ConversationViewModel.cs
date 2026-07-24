@@ -136,16 +136,102 @@ namespace QQReborn.App.ViewModels
             }
         }
 
-        private static string ContentSummary(ChatMessage m)
+        public static string ContentSummary(ChatMessage m)
         {
             if (m == null) return string.Empty;
             if (m.IsImage) return "[图片]";
             if (m.IsSticker) return "[表情]";
             if (m.IsVoice) return "[语音]";
+            if (m.IsVideo) return "[视频]";
             if (m.IsLinkCard) return "[链接]";
             if (m.IsFile) return "[文件]";
             if (m.IsLocation) return "[位置]";
             return m.Text ?? string.Empty;
+        }
+
+        /// <summary>Plain-text export of one bubble (for clipboard / multi-copy).</summary>
+        public static string FormatForCopy(ChatMessage m, bool withSender)
+        {
+            if (m == null || m.IsSystem) return string.Empty;
+            var body = m.IsText ? (m.Text ?? string.Empty) : ContentSummary(m);
+            if (!withSender) return body;
+            var who = m.IsOutgoing
+                ? "我"
+                : (string.IsNullOrEmpty(m.SenderName) ? "对方" : m.SenderName);
+            return who + "：" + body;
+        }
+
+        /// <summary>
+        /// Peer (or self-from-other-client) recalled a message. With 防撤回 the bubble stays
+        /// and is flagged; otherwise it is swapped for a system line.
+        /// </summary>
+        public void ApplyPeerRecall(string messageId, long napcatMessageId, string senderName, string preview)
+        {
+            ChatMessage hit = null;
+            foreach (var m in Messages)
+            {
+                if (m == null) continue;
+                if (!string.IsNullOrEmpty(messageId) && m.Id == messageId) { hit = m; break; }
+                if (napcatMessageId > 0
+                    && !string.IsNullOrEmpty(m.Id)
+                    && m.Id.EndsWith(":" + napcatMessageId, StringComparison.Ordinal))
+                {
+                    hit = m;
+                    break;
+                }
+            }
+
+            var who = string.IsNullOrEmpty(senderName)
+                ? (hit != null && !string.IsNullOrEmpty(hit.SenderName) ? hit.SenderName : "对方")
+                : senderName;
+
+            if (UtilitySettings.AntiRecall && hit != null && !hit.IsSystem)
+            {
+                hit.IsRevoked = true;
+                // Keep original content; mark for the user.
+                if (hit.IsText && !string.IsNullOrEmpty(hit.Text)
+                    && hit.Text.IndexOf("【已撤回】", StringComparison.Ordinal) < 0)
+                {
+                    hit.Text = "【已撤回】" + hit.Text;
+                }
+                if (UtilitySettings.ShowRevokeNotice)
+                    AppendSystem(who + " 撤回了一条消息（本地已保留）");
+                return;
+            }
+
+            if (hit != null)
+            {
+                var index = Messages.IndexOf(hit);
+                if (index >= 0)
+                {
+                    Messages.RemoveAt(index);
+                    if (UtilitySettings.ShowRevokeNotice)
+                    {
+                        var system = new ChatMessage
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            ConversationId = ConversationId,
+                            Direction = MessageDirection.Incoming,
+                            ContentType = MessageContentType.System,
+                            Text = who + " 撤回了一条消息",
+                            Time = hit.Time,
+                            ShowTimeDivider = hit.ShowTimeDivider,
+                        };
+                        Messages.Insert(index, system);
+                    }
+                    UpdateReadState();
+                    return;
+                }
+            }
+
+            // Message not on screen (already scrolled away / never loaded). Optional tip only.
+            if (UtilitySettings.ShowRevokeNotice)
+            {
+                var tip = who + " 撤回了一条消息";
+                if (!string.IsNullOrEmpty(preview) && UtilitySettings.AntiRecall)
+                    tip += "：" + preview;
+                AppendSystem(tip);
+            }
         }
 
         public void ClearReplyTarget() => ReplyTarget = null;

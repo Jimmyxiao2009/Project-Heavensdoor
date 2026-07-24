@@ -5,12 +5,12 @@ namespace QQReborn.RealServer;
 
 public static class BackendFactory
 {
-    public const string Lagrange = "lagrange";
     public const string NapCat = "napcat";
 
     /// <summary>
-    /// Resolve backend from (priority high→low):
-    /// env QQREBORN_BACKEND, config QQReborn:Backend, default lagrange.
+    /// Resolve backend id. Production path is always NapCat local gateway.
+    /// Env QQREBORN_BACKEND / config QQReborn:Backend may still say "napcat";
+    /// any other value is treated as napcat (Lagrange removed).
     /// </summary>
     public static string ResolveBackendId(IConfiguration config)
     {
@@ -20,29 +20,26 @@ public static class BackendFactory
         var cfg = config["QQReborn:Backend"] ?? config["Backend"];
         if (!string.IsNullOrWhiteSpace(cfg)) return Normalize(cfg);
 
-        return Lagrange;
+        return NapCat;
     }
 
     public static ISessionBackend Create(IConfiguration config)
     {
         var id = ResolveBackendId(config);
-        Console.WriteLine($"[Backend] selected = {id}");
+        if (id != NapCat)
+            Console.WriteLine($"[Backend] '{id}' is no longer supported; using napcat");
+        Console.WriteLine($"[Backend] selected = {NapCat}");
 
-        if (id == NapCat)
-        {
-            var opts = new NapCatOptions();
-            config.GetSection("NapCat").Bind(opts);
-            // Env overrides for headless deploy
-            var http = Environment.GetEnvironmentVariable("NAPCAT_HTTP");
-            var ws = Environment.GetEnvironmentVariable("NAPCAT_WS");
-            var token = Environment.GetEnvironmentVariable("NAPCAT_TOKEN");
-            if (!string.IsNullOrWhiteSpace(http)) opts.HttpBase = http.Trim().TrimEnd('/');
-            if (!string.IsNullOrWhiteSpace(ws)) opts.EventWs = ws.Trim();
-            if (!string.IsNullOrWhiteSpace(token)) opts.AccessToken = token.Trim();
-            return new NapCatSessionManager(opts);
-        }
-
-        return new BotSessionManager();
+        var opts = new NapCatOptions();
+        config.GetSection("NapCat").Bind(opts);
+        // Env overrides for headless deploy
+        var http = Environment.GetEnvironmentVariable("NAPCAT_HTTP");
+        var ws = Environment.GetEnvironmentVariable("NAPCAT_WS");
+        var token = Environment.GetEnvironmentVariable("NAPCAT_TOKEN");
+        if (!string.IsNullOrWhiteSpace(http)) opts.HttpBase = http.Trim().TrimEnd('/');
+        if (!string.IsNullOrWhiteSpace(ws)) opts.EventWs = ws.Trim();
+        if (!string.IsNullOrWhiteSpace(token)) opts.AccessToken = token.Trim();
+        return new NapCatSessionManager(opts);
     }
 
     private static string Normalize(string raw)
@@ -50,9 +47,10 @@ public static class BackendFactory
         var s = raw.Trim().ToLowerInvariant();
         return s switch
         {
-            "napcat" or "onebot" or "ob11" or "ntqq" => NapCat,
-            "lagrange" or "lagrangev2" or "lv2" or "real" => Lagrange,
-            _ => s,
+            "napcat" or "onebot" or "ob11" or "ntqq" or "local" or "localgateway" => NapCat,
+            // Former Lagrange aliases map to napcat (product path removed).
+            "lagrange" or "lagrangev2" or "lv2" or "real" => NapCat,
+            _ => NapCat,
         };
     }
 }

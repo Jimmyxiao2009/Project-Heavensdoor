@@ -6,11 +6,29 @@
     xmlns:views="using:QQReborn.App.Views"
     Background="{StaticResource MetroBackgroundBrush}">
 
+    <Page.BottomAppBar>
+        <CommandBar Style="{StaticResource MetroCommandBarStyle}"
+                    OverflowButtonVisibility="Visible">
+            <AppBarButton Style="{StaticResource MetroAppBarButtonStyle}"
+                          Icon="Find" Label="搜索" Click="SearchAppBar_Click" />
+            <AppBarButton Style="{StaticResource MetroAppBarButtonStyle}"
+                          Icon="Add" Label="添加" Click="AddMenu_Click" />
+            <AppBarButton Style="{StaticResource MetroAppBarButtonStyle}"
+                          Icon="Refresh" Label="刷新" Click="RefreshAppBar_Click" />
+            <CommandBar.SecondaryCommands>
+                <AppBarButton Label="全部已读" Click="MarkAllRead_Click" />
+                <AppBarButton Label="全部免打扰" Click="MuteAll_Click" />
+                <AppBarButton Label="恢复通知" Click="UnmuteAll_Click" />
+                <AppBarButton Label="文件" Click="Files_Click" />
+                <AppBarButton Label="快捷面板" Click="QuickPanelAppBar_Click" />
+            </CommandBar.SecondaryCommands>
+        </CommandBar>
+    </Page.BottomAppBar>
+
     <Page.Resources>
-        <!-- 会话行 -->
-                <DataTemplate x:Key="ConversationItemTemplate" x:DataType="models:ChatConversation">
-            <!-- 置顶：整行背景加深，不再显示钉子图标 -->
-            <Grid Height="76" Margin="0,0,19,0"
+        <!-- Conversation row — square avatar, Metro list rhythm -->
+        <DataTemplate x:Key="ConversationItemTemplate" x:DataType="models:ChatConversation">
+            <Grid Height="80" Margin="0,0,19,0"
                   Background="{Binding IsPinned, Converter={StaticResource PinnedRowBrush}}"
                   Holding="Conversation_Holding" RightTapped="Conversation_RightTapped">
                 <Grid.ColumnDefinitions>
@@ -19,7 +37,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid Grid.Column="0" VerticalAlignment="Center">
-                    <Rectangle Width="56" Height="56">
+                    <Rectangle Width="58" Height="58">
                         <Rectangle.Fill>
                             <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
                         </Rectangle.Fill>
@@ -35,75 +53,59 @@
                         </Grid>
                     </Border>
                 </Grid>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,8,0">
-                    <TextBlock Text="{Binding Title}" FontSize="19" FontWeight="SemiLight"
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,10,0">
+                    <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiLight"
                                Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{Binding PreviewDisplay}" FontSize="13"
                                Foreground="{StaticResource MetroSecondaryTextBrush}"
-                               TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                               TextTrimming="CharacterEllipsis" Margin="0,5,0,0" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" VerticalAlignment="Top" Margin="0,6,0,0" HorizontalAlignment="Right">
+                <StackPanel Grid.Column="2" VerticalAlignment="Top" Margin="0,8,0,0" HorizontalAlignment="Right">
                     <TextBlock Text="{Binding LastTimeText}" FontSize="12"
                                Foreground="{StaticResource MetroSecondaryTextBrush}" HorizontalAlignment="Right" />
                     <FontIcon Glyph="&#xE74F;" FontSize="12" FontFamily="Segoe MDL2 Assets"
-                              HorizontalAlignment="Right" Margin="0,4,0,0"
+                              HorizontalAlignment="Right" Margin="0,6,0,0"
                               Foreground="{StaticResource MetroSecondaryTextBrush}"
-                               Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibility}}" />
+                              Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibility}}" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
 
-        <!-- 联系人行 -->
+        <!-- Contact row -->
         <DataTemplate x:Key="ContactItemTemplate" x:DataType="models:Contact">
-            <Grid Height="68" Margin="0,0,19,0">
+            <Grid Height="72" Margin="0,0,19,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid Grid.Column="0" VerticalAlignment="Center">
-                    <Rectangle Width="50" Height="50">
+                    <Rectangle Width="52" Height="52">
                         <Rectangle.Fill>
                             <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
                         </Rectangle.Fill>
                     </Rectangle>
-                    <Ellipse Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                             Margin="0,0,-2,-2" Stroke="{StaticResource MetroBackgroundBrush}" StrokeThickness="2"
-                             Fill="{StaticResource MetroAccentBrush}"
-                             Visibility="{Binding Online, Converter={StaticResource BoolToVisibility}}" />
+                    <Rectangle Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                               Margin="0,0,-2,-2" Fill="{StaticResource MetroAccentBrush}"
+                               Visibility="{Binding Online, Converter={StaticResource BoolToVisibility}}" />
                 </Grid>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                    <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiLight"
+                    <TextBlock Text="{Binding Name}" FontSize="19" FontWeight="SemiLight"
                                Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{Binding Signature}" FontSize="12"
                                Foreground="{StaticResource MetroSecondaryTextBrush}"
-                               TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                               TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
-
-        <Style x:Key="MetroListStyle" TargetType="ListView">
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="ItemContainerStyle">
-                <Setter.Value>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="Padding" Value="0" />
-                        <Setter Property="MinHeight" Value="0" />
-                        <Setter Property="Margin" Value="0" />
-                    </Style>
-                </Setter.Value>
-            </Setter>
-        </Style>
     </Page.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 主页面随快捷面板下移、缩小，形成抽屉层次 -->
-        <Grid x:Name="PageContent" Grid.RowSpan="2" RenderTransformOrigin="0.5,0">
+        <!-- Main surface: scales slightly when quick panel is open (WP depth cue) -->
+        <Grid x:Name="PageContent" RenderTransformOrigin="0.5,0">
             <Grid.RenderTransform>
                 <CompositeTransform />
             </Grid.RenderTransform>
@@ -111,147 +113,178 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <Grid Grid.Row="0" ManipulationMode="TranslateY" ManipulationDelta="Header_ManipulationDelta" ManipulationCompleted="Header_ManipulationCompleted">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" x:Name="TitleButton" Click="Title_Click"
-                    Background="Transparent" BorderThickness="0" Padding="0"
-                    ManipulationMode="None"
-                    HorizontalAlignment="Left" HorizontalContentAlignment="Left"
-                    VerticalAlignment="Center">
-                <TextBlock Text="QQ REBORN" Style="{StaticResource MetroPageTitleStyle}" />
-            </Button>
-            <Button Grid.Column="1" Content="＋" FontSize="24" FontWeight="Light"
-                    Foreground="{StaticResource MetroPrimaryTextBrush}" Background="Transparent"
-                    BorderThickness="0" Padding="14,0,20,0" VerticalAlignment="Center"
-                    Click="AddMenu_Click" />
-        </Grid>
 
-
-        <Pivot Grid.Row="1" Style="{StaticResource MetroPivotStyle}" Margin="20,10,0,0">
-
-            <PivotItem Header="消息" Margin="0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Border Grid.Row="0" Background="{StaticResource MetroPanelBrush}" Margin="0,0,19,10"
-                            MinHeight="40" Tapped="SearchBar_Tapped">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-                            <FontIcon Glyph="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="15" VerticalAlignment="Center" Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                            <TextBlock Text="搜索" FontSize="15" FontWeight="Light" Margin="10,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                        </StackPanel>
-                    </Border>
-                    <ListView Grid.Row="1" x:Name="ConversationList"
-                              ItemsSource="{Binding Conversations}"
-                              ItemTemplate="{StaticResource ConversationItemTemplate}"
-                              Style="{StaticResource MetroListStyle}"
-                              IsItemClickEnabled="True" SelectionMode="None"
-                              ItemClick="ConversationList_ItemClick" />
-                </Grid>
-            </PivotItem>
-
-            <PivotItem Header="联系人" Margin="0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <!-- 新朋友 / 群通知 入口 -->
-                    <StackPanel Grid.Row="0">
-                        <Grid Height="68" Margin="0,0,19,0" Background="Transparent"
-                              Tapped="NewFriends_Tapped">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Width="50" Height="50" VerticalAlignment="Center"
-                                    Background="{StaticResource MetroPanelBrush}">
-                                <FontIcon Glyph="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                            </Border>
-                            <TextBlock Grid.Column="1" Text="新朋友" FontSize="18" FontWeight="SemiLight"
-                                       VerticalAlignment="Center" Margin="14,0,0,0"
-                                       Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                            <TextBlock Grid.Column="2" Text="›" FontSize="22" VerticalAlignment="Center"
-                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                        </Grid>
-                        <Grid Height="68" Margin="0,0,19,0" Background="Transparent"
-                              Tapped="GroupNotifications_Tapped">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Width="50" Height="50" VerticalAlignment="Center"
-                                    Background="{StaticResource MetroPanelBrush}">
-                                <FontIcon Glyph="&#xE7E7;" FontFamily="Segoe MDL2 Assets" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                            </Border>
-                            <TextBlock Grid.Column="1" Text="群通知" FontSize="18" FontWeight="SemiLight"
-                                       VerticalAlignment="Center" Margin="14,0,0,0"
-                                       Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                            <TextBlock Grid.Column="2" Text="›" FontSize="22" VerticalAlignment="Center"
-                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                        </Grid>
+            <!-- Panorama chrome: app name + giant title (tap / pull for shortcuts) -->
+            <Grid Grid.Row="0" Padding="19,10,12,0"
+                  ManipulationMode="TranslateY"
+                  ManipulationDelta="Header_ManipulationDelta"
+                  ManipulationCompleted="Header_ManipulationCompleted">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Button x:Name="TitleButton" Grid.Row="0" Grid.RowSpan="2"
+                        Click="Title_Click"
+                        Background="Transparent" BorderThickness="0" Padding="0"
+                        ManipulationMode="None"
+                        HorizontalAlignment="Left" HorizontalContentAlignment="Left"
+                        VerticalAlignment="Top" VerticalContentAlignment="Top">
+                    <StackPanel>
+                        <TextBlock Text="QQ REBORN" Style="{StaticResource MetroPageTitleStyle}" />
+                        <TextBlock Text="qq" Style="{StaticResource MetroPanoramaTitleStyle}" Margin="0,-4,0,0" />
                     </StackPanel>
+                </Button>
+            </Grid>
 
-                    <ListView Grid.Row="1" x:Name="ContactList"
-                              ItemsSource="{Binding Contacts}"
-                              ItemTemplate="{StaticResource ContactItemTemplate}"
-                              Style="{StaticResource MetroListStyle}"
-                              IsItemClickEnabled="True" SelectionMode="None"
-                              ItemClick="ContactList_ItemClick" />
-                </Grid>
-            </PivotItem>
+            <!-- Pivot sections — classic WP horizontal sections with peeking headers -->
+            <Pivot x:Name="MainPivot" Grid.Row="1"
+                   Style="{StaticResource MetroPivotStyle}"
+                   Margin="19,4,0,0">
 
-            <PivotItem Header="动态" Margin="0">
-                <views:MomentsView/>
-            </PivotItem>
+                <PivotItem Header="消息" Margin="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource MetroSearchBarStyle}" Tapped="SearchBar_Tapped">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <FontIcon Glyph="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="15"
+                                          VerticalAlignment="Center"
+                                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                                <TextBlock Text="搜索" FontSize="15" FontWeight="Light" Margin="10,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <ListView Grid.Row="1" x:Name="ConversationList"
+                                  ItemsSource="{Binding Conversations}"
+                                  ItemTemplate="{StaticResource ConversationItemTemplate}"
+                                  Style="{StaticResource MetroListStyle}"
+                                  ItemClick="ConversationList_ItemClick" />
+                    </Grid>
+                </PivotItem>
 
-            <PivotItem Header="我" Margin="0">
-                <views:ProfileView/>
-            </PivotItem>
+                <PivotItem Header="联系人" Margin="0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
 
-        </Pivot>
+                        <StackPanel Grid.Row="0" Margin="0,0,0,6">
+                            <Grid Height="72" Margin="0,0,19,0" Background="Transparent"
+                                  Tapped="NewFriends_Tapped">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="52" Height="52" VerticalAlignment="Center"
+                                        Background="{StaticResource MetroAccentBrush}">
+                                    <FontIcon Glyph="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="24"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Foreground="White" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="新朋友" FontSize="19" FontWeight="SemiLight"
+                                           VerticalAlignment="Center" Margin="14,0,0,0"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Grid.Column="2" Text="&#x203A;" FontSize="22" VerticalAlignment="Center"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            </Grid>
+                            <Grid Height="72" Margin="0,0,19,0" Background="Transparent"
+                                  Tapped="GroupNotifications_Tapped">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="52" Height="52" VerticalAlignment="Center"
+                                        Background="{StaticResource MetroPanelBrush}">
+                                    <FontIcon Glyph="&#xE7E7;" FontFamily="Segoe MDL2 Assets" FontSize="24"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="群通知" FontSize="19" FontWeight="SemiLight"
+                                           VerticalAlignment="Center" Margin="14,0,0,0"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Grid.Column="2" Text="&#x203A;" FontSize="22" VerticalAlignment="Center"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            </Grid>
+                            <Border Height="1" Background="{StaticResource MetroSubtleBrush}"
+                                    Margin="0,4,19,8" />
+                        </StackPanel>
 
+                        <ListView Grid.Row="1" x:Name="ContactList"
+                                  ItemsSource="{Binding Contacts}"
+                                  ItemTemplate="{StaticResource ContactItemTemplate}"
+                                  Style="{StaticResource MetroListStyle}"
+                                  ItemClick="ContactList_ItemClick" />
+                    </Grid>
+                </PivotItem>
+
+                <PivotItem Header="动态" Margin="0">
+                    <views:MomentsView />
+                </PivotItem>
+
+                <PivotItem Header="我" Margin="0">
+                    <views:ProfileView />
+                </PivotItem>
+            </Pivot>
         </Grid>
 
-        <!-- 主页面变暗的遮罩，点击可关闭面板 -->
-        <Border x:Name="QuickDimmer" Grid.RowSpan="2" Background="#99000000"
+        <!-- Dimmer when quick panel is open -->
+        <Border x:Name="QuickDimmer" Background="#99000000"
                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                 IsHitTestVisible="True" Visibility="Collapsed"
                 Tapped="QuickDimmer_Tapped" PointerPressed="QuickDimmer_PointerPressed" />
 
-        <!-- 下拉快捷面板：从顶部滑入，不覆盖整个页面 -->
-        <Border x:Name="QuickPanel" Grid.Row="0" Grid.RowSpan="2"
-                VerticalAlignment="Top" Height="300" Margin="12,0,12,0"
-                Background="{StaticResource MetroPanelBrush}"
+        <!-- Drop-down Metro tiles (classic WP quick actions) -->
+        <Border x:Name="QuickPanel"
+                VerticalAlignment="Top" Height="280" Margin="12,0,12,0"
+                Background="{StaticResource MetroChromeBrush}"
                 RenderTransformOrigin="0.5,0" Visibility="Collapsed"
                 Tapped="QuickPanel_Tapped" PointerPressed="QuickPanel_PointerPressed">
             <Border.RenderTransform>
-                <CompositeTransform TranslateY="-300" />
+                <CompositeTransform TranslateY="-280" />
             </Border.RenderTransform>
-            <ScrollViewer VerticalScrollBarVisibility="Hidden">
-                <StackPanel Padding="18,18,18,12">
-                    <TextBlock Text="快捷控制" FontSize="20" Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                    <TextBlock Text="下拉面板不会覆盖整个页面" FontSize="12" Margin="0,4,0,14"
+            <Grid Padding="14,16,14,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Margin="2,0,2,12">
+                    <TextBlock Text="快捷" FontSize="13" CharacterSpacing="40"
                                Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                    <Button Content="全部已读" Click="MarkAllRead_Click" HorizontalAlignment="Stretch" />
-                    <Button Content="全部消息免打扰" Click="MuteAll_Click" HorizontalAlignment="Stretch" />
-                    <Button Content="恢复消息通知" Click="UnmuteAll_Click" Margin="0,8,0,0" HorizontalAlignment="Stretch" />
-                    <Button Content="文件" Click="Files_Click" Margin="0,8,0,0" HorizontalAlignment="Stretch" />
+                    <TextBlock Text="控制中心" FontSize="28" FontWeight="Light" CharacterSpacing="-10"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" Margin="0,2,0,0" />
                 </StackPanel>
-            </ScrollViewer>
+                <Grid Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Grid.Row="0" Grid.Column="0" Margin="0,0,6,6"
+                            Style="{StaticResource MetroTileButtonStyle}"
+                            Content="全部已读" Click="MarkAllRead_Click" />
+                    <Button Grid.Row="0" Grid.Column="1" Margin="6,0,0,6"
+                            Style="{StaticResource MetroTileSecondaryButtonStyle}"
+                            Content="全部免打扰" Click="MuteAll_Click" />
+                    <Button Grid.Row="1" Grid.Column="0" Margin="0,6,6,0"
+                            Style="{StaticResource MetroTileSecondaryButtonStyle}"
+                            Content="恢复通知" Click="UnmuteAll_Click" />
+                    <Button Grid.Row="1" Grid.Column="1" Margin="6,6,0,0"
+                            Style="{StaticResource MetroTileButtonStyle}"
+                            Background="{StaticResource MetroAccentDarkBrush}"
+                            Content="文件" Click="Files_Click" />
+                </Grid>
+            </Grid>
         </Border>
 
-        <!-- 应用内新消息横幅（覆盖在 Pivot 之上，默认隐藏） -->
-        <views:InAppBanner x:Name="Banner" Grid.Row="0" Grid.RowSpan="2"
-                           VerticalAlignment="Top" />
+        <views:InAppBanner x:Name="Banner" VerticalAlignment="Top" />
     </Grid>
 </Page>

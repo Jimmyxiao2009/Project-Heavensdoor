@@ -4,12 +4,11 @@ namespace QQReborn.RealServer;
 
 /// <summary>
 /// Protocol-agnostic session surface used by the WS host (<see cref="Program"/>).
-/// Implementations: <see cref="BotSessionManager"/> (LagrangeV2) and
-/// <see cref="NapCat.NapCatSessionManager"/> (OneBot 11 / NapCat).
+/// Production implementation: <see cref="NapCat.NapCatSessionManager"/> (OneBot 11 / NapCat).
 /// </summary>
 public interface ISessionBackend
 {
-    /// <summary>Backend id for diagnostics: "lagrange" | "napcat".</summary>
+    /// <summary>Backend id for diagnostics (always "napcat" in product builds).</summary>
     string BackendId { get; }
 
     event Action<string>? Broadcast;

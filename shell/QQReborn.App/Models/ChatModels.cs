@@ -269,7 +269,26 @@ namespace QQReborn.App.Models
             }
         }
 
-        public string Text { get; set; }
+        private string _text;
+        public string Text
+        {
+            get => _text;
+            set => Set(ref _text, value);
+        }
+
+        /// <summary>Peer (or self) withdrew this message; content may still be kept when 防撤回 is on.</summary>
+        private bool _isRevoked;
+        public bool IsRevoked
+        {
+            get => _isRevoked;
+            set
+            {
+                if (Set(ref _isRevoked, value))
+                    RaisePropertyChanged(nameof(RevokedBadgeText));
+            }
+        }
+        public string RevokedBadgeText => _isRevoked ? "已撤回 · 本地保留" : string.Empty;
+
         public System.Collections.ObjectModel.ObservableCollection<MessageElement> Elements { get; set; } = new System.Collections.ObjectModel.ObservableCollection<MessageElement>();
         
         public bool HasElements => Elements != null && Elements.Count > 0;

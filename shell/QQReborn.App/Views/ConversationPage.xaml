@@ -413,19 +413,19 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- 大标题头部 -->
-        <Grid Grid.Row="0" Margin="24,12,16,8">
+        <!-- WP-style hero title -->
+        <Grid Grid.Row="0" Margin="19,10,8,4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
-                <TextBlock Text="聊天" FontSize="13" CharacterSpacing="40"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                <TextBlock Text="{Binding Title}" FontSize="36" FontWeight="Light" CharacterSpacing="-20"
-                           Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="聊天" Style="{StaticResource MetroPageTitleStyle}" />
+                <TextBlock Text="{Binding Title}" Style="{StaticResource MetroHeroTitleStyle}"
+                           Margin="0,-2,0,0" TextTrimming="CharacterEllipsis" />
             </StackPanel>
             <Button Grid.Column="1" x:Name="ChatBgButton" Click="ChatBgButton_Click" Background="Transparent"
                     BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
@@ -436,7 +436,14 @@
                     BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
                     Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="22" Content="群"
                     Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}" />
-            <Button Grid.Column="3" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
+            <Button Grid.Column="3" x:Name="MultiSelectHeaderButton" Click="MultiSelectHeader_Click"
+                    Background="Transparent" BorderThickness="0" VerticalAlignment="Top"
+                    Padding="10,6" Margin="0,4,0,0"
+                    Foreground="{StaticResource MetroSecondaryTextBrush}"
+                    ToolTipService.ToolTip="多选">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE762;" FontSize="20" />
+            </Button>
+            <Button Grid.Column="4" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
                     BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
                     Foreground="{StaticResource MetroSecondaryTextBrush}">
                 <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72B;" FontSize="22" />
@@ -527,8 +534,39 @@
         <!-- @ Mention Picker -->
         <!-- Mentions are implemented using MenuFlyout in ConversationPage.xaml.cs (InputBox_TextChanged) -->
 
+        <!-- 多选工具条（与输入栏同槽，切换显示） -->
+        <Grid x:Name="MultiSelectBar" Grid.Row="3" Background="{StaticResource MetroChromeBrush}"
+              Padding="10,10" MinHeight="56" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="MultiSelectCountText" Grid.Column="0" Text="已选 0 条"
+                       VerticalAlignment="Center" FontSize="14"
+                       Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            <Button Grid.Column="1" Content="复制" Click="MultiCopy_Click" Margin="4,0"
+                    Style="{StaticResource MetroChromeButtonStyle}" Padding="10,8" MinWidth="0"
+                    HorizontalAlignment="Left" />
+            <Button Grid.Column="2" Content="转发" Click="MultiForward_Click" Margin="4,0"
+                    Style="{StaticResource MetroChromeButtonStyle}" Padding="10,8" MinWidth="0"
+                    HorizontalAlignment="Left" />
+            <Button Grid.Column="3" Content="截图" Click="MultiScreenshot_Click" Margin="4,0"
+                    Style="{StaticResource MetroChromeButtonStyle}" Padding="10,8" MinWidth="0"
+                    HorizontalAlignment="Left" />
+            <Button Grid.Column="4" Content="删除" Click="MultiDelete_Click" Margin="4,0"
+                    Style="{StaticResource MetroChromeButtonStyle}" Padding="10,8" MinWidth="0"
+                    HorizontalAlignment="Left" />
+            <Button Grid.Column="5" Content="取消" Click="MultiSelectCancel_Click" Margin="4,0"
+                    Style="{StaticResource MetroAccentButtonStyle}" Padding="10,8" MinWidth="0"
+                    HorizontalAlignment="Left" />
+        </Grid>
+
         <!-- 输入栏 -->
-        <Grid Grid.Row="3" Background="{StaticResource MetroPanelBrush}" Padding="8,8" MinHeight="56">
+        <Grid x:Name="InputBar" Grid.Row="3" Background="{StaticResource MetroPanelBrush}" Padding="8,8" MinHeight="56">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />

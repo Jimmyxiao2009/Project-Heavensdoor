@@ -18,6 +18,7 @@ public partial class MainWindow : Window
         _bad = (Brush)FindResource("Bad");
 
         RepoRootText.Text = _mgr.RepoRoot;
+        AccessPasswordBox.Text = _mgr.AccessPassword;
         _mgr.LogLine += line => Dispatcher.Invoke(() =>
         {
             LogBox.AppendText(line + Environment.NewLine);
@@ -29,35 +30,29 @@ public partial class MainWindow : Window
         _uiTimer.Start();
 
         Append("Repo: " + _mgr.RepoRoot);
-        Append("选择后端（Lagrange / NapCat）后点「全部启动」。");
-        Append("文档: docs/BACKEND-SWITCH.md");
+        Append("本机 NapCat 网关管家。请确认 NTQQ + NapCat 已登录，再点「启动网关」。");
+        Append("Shell 只需填写地址、端口和此处的访问密码。");
         RefreshStatus();
+        _ = ProbeNapCatQuietAsync();
     }
 
-    private void ApplyBackendSelection()
+    private async Task ProbeNapCatQuietAsync()
     {
-        if (BackendCombo.SelectedItem is System.Windows.Controls.ComboBoxItem item
-            && item.Tag is string tag
-            && !string.IsNullOrWhiteSpace(tag))
+        var ok = await _mgr.CheckNapCatAsync();
+        Dispatcher.Invoke(() =>
         {
-            _mgr.Backend = tag;
-        }
-        else
-        {
-            _mgr.Backend = "lagrange";
-        }
+            NapCatStatus.Text = ok ? "在线" : "未连接";
+            NapCatDot.Fill = ok ? _ok : _bad;
+        });
     }
 
     private void RefreshStatus()
     {
         var rs = _mgr.RealServerRunning;
-        var sp = _mgr.SignProxyRunning;
         RealDot.Fill = rs ? _ok : _bad;
-        SignDot.Fill = sp ? _ok : _bad;
         RealStatus.Text = rs ? "运行中" : "已停止";
-        SignStatus.Text = sp ? "运行中" : "已停止";
         RealUrl.Text = $"ws://127.0.0.1:{_mgr.RealServerPort}/ws";
-        SignUrl.Text = $"http://127.0.0.1:{_mgr.SignProxyPort}";
+        NapCatUrl.Text = _mgr.NapCatHttp.TrimEnd('/') + "/get_login_info";
     }
 
     private async void StartAll_Click(object sender, RoutedEventArgs e)
@@ -65,8 +60,11 @@ public partial class MainWindow : Window
         StartAllBtn.IsEnabled = false;
         try
         {
-            ApplyBackendSelection();
-            Append("—— 启动中 (backend=" + _mgr.Backend + ") ——");
+            _mgr.Backend = "napcat";
+            _mgr.AccessPassword = AccessPasswordBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(_mgr.AccessPassword))
+                throw new InvalidOperationException("请先设置网关访问密码。");
+            Append("—— 启动中 (napcat local gateway) ——");
             await _mgr.StartAllAsync();
         }
         catch (Exception ex)
@@ -87,32 +85,26 @@ public partial class MainWindow : Window
         RefreshStatus();
     }
 
-    private async void WebhookTest_Click(object sender, RoutedEventArgs e)
+    private async void CheckNapCat_Click(object sender, RoutedEventArgs e)
     {
-        if (!_mgr.RealServerRunning)
-        {
-            MessageBox.Show("请先启动 RealServer。", "Webhook", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-        await _mgr.TestSpaceWebhookAsync();
+        NapCatStatus.Text = "检测中…";
+        NapCatDot.Fill = _bad;
+        var ok = await _mgr.CheckNapCatAsync();
+        NapCatStatus.Text = ok ? "在线" : "未连接";
+        NapCatDot.Fill = ok ? _ok : _bad;
     }
 
-    private void WebhookHelp_Click(object sender, RoutedEventArgs e)
+    private void CopyPassword_Click(object sender, RoutedEventArgs e)
     {
-        var help =
-            "空间动态 Webhook\n\n" +
-            $"POST http://127.0.0.1:{_mgr.RealServerPort}/webhook/space\n" +
-            "Content-Type: application/json\n\n" +
-            "{\n" +
-            "  \"author\": \"张三\",\n" +
-            "  \"text\": \"内容\",\n" +
-            "  \"images\": [\"https://...\"],\n" +
-            "  \"time\": \"2026-07-21T12:00:00+08:00\"\n" +
-            "}\n\n" +
-            "或 { \"items\": [ {...}, {...} ] }\n\n" +
-            "App「动态」页通过 getMoments 拉取；\n" +
-            "Web 空间 / 爬虫向此 URL POST 即可。";
-        MessageBox.Show(help, "Webhook 说明", MessageBoxButton.OK, MessageBoxImage.Information);
+        Clipboard.SetText(AccessPasswordBox.Text);
+        Append("已复制访问密码。");
+    }
+
+    private void CopyAddress_Click(object sender, RoutedEventArgs e)
+    {
+        var text = $"主机 127.0.0.1  端口 {_mgr.RealServerPort}  密码 {AccessPasswordBox.Text}";
+        Clipboard.SetText(text);
+        Append("已复制: " + text);
     }
 
     private void ClearLog_Click(object sender, RoutedEventArgs e) => LogBox.Clear();
@@ -123,19 +115,18 @@ public partial class MainWindow : Window
         Append("已复制: " + RealUrl.Text);
     }
 
-    private void SignUrl_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void NapCatUrl_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        Clipboard.SetText(SignUrl.Text);
-        Append("已复制: " + SignUrl.Text);
+        Clipboard.SetText(NapCatUrl.Text);
+        Append("已复制: " + NapCatUrl.Text);
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
         _uiTimer.Stop();
-        // Ask whether to stop servers
-        if (_mgr.RealServerRunning || _mgr.SignProxyRunning)
+        if (_mgr.RealServerRunning)
         {
-            var r = MessageBox.Show("关闭面板时是否停止已启动的服务？", "退出",
+            var r = MessageBox.Show("关闭面板时是否停止网关？", "退出",
                 MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
             if (r == MessageBoxResult.Cancel) { e.Cancel = true; return; }
             if (r == MessageBoxResult.Yes) _mgr.StopAll();

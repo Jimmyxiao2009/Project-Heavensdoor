@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Windows.ApplicationModel.Activation;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -14,7 +15,7 @@ namespace QQReborn.App
         /// <summary>
         /// App-wide chat backend. Flip to false to use the in-app mock instead of a
         /// WebSocket server (QQReborn.FakeServer for the demo, or QQReborn.RealServer for
-        /// a real LagrangeV2-backed QQ account -- both speak the same protocol on :8765).
+        /// a NapCat local gateway -- both speak the same protocol on :8765).
         /// </summary>
         private const bool UseRemoteBackend = true;
 
@@ -105,6 +106,24 @@ namespace QQReborn.App
             catch { }
 
             ToastHelper.ShowMessageToast(title, msg.ConversationId, content, avatar, false);
+
+            // Optional phone vibration (实用功能 · 来消息震动). Phone-only API; reflection
+            // keeps the desktop UWP build from requiring Windows.Phone contracts.
+            if (UtilitySettings.VibrateOnMessage)
+            {
+                try
+                {
+                    var t = Type.GetType("Windows.Phone.Devices.Notification.VibrationDevice, Windows, ContentType=WindowsRuntime");
+                    if (t != null)
+                    {
+                        var getDefault = t.GetRuntimeMethod("GetDefault", Type.EmptyTypes);
+                        var device = getDefault?.Invoke(null, null);
+                        var vibrate = t.GetRuntimeMethod("Vibrate", new[] { typeof(TimeSpan) });
+                        vibrate?.Invoke(device, new object[] { TimeSpan.FromMilliseconds(120) });
+                    }
+                }
+                catch { /* desktop / no vibration device */ }
+            }
         }
 
         private void OnResuming(object sender, object e)

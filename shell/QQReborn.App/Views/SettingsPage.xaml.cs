@@ -25,12 +25,12 @@ namespace QQReborn.App.Views
         {
             base.OnNavigatedTo(e);
             await _vm.LoadAsync();
-            SignTokenBox.Password = _vm.SignToken;
+            AccessPasswordBox.Password = _vm.AccessPassword;
         }
 
-        private void SignTokenBox_PasswordChanged(object sender, RoutedEventArgs e)
+        private void AccessPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
-            _vm.SignToken = SignTokenBox.Password;
+            _vm.AccessPassword = AccessPasswordBox.Password;
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)

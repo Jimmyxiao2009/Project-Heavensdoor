@@ -1,4 +1,5 @@
 using System.Net.WebSockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using QQReborn.RealServer;
@@ -6,14 +7,19 @@ using QQReborn.RealServer;
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://0.0.0.0:8765");
 
-// Multi-protocol: lagrange (default) | napcat  via QQREBORN_BACKEND or QQReborn:Backend
-var backend = BackendFactory.Create(builder.Configuration);
-builder.Services.AddSingleton<ISessionBackend>(backend);
+// Each Shell connection gets an isolated NapCat-backed session.
+builder.Services.AddSingleton<SessionHub>();
 
 var app = builder.Build();
 app.UseWebSockets();
 
-var sessions = app.Services.GetRequiredService<ISessionBackend>();
+var accessPassword = builder.Configuration["QQReborn:AccessPassword"]
+    ?? Environment.GetEnvironmentVariable("QQREBORN_ACCESS_PASSWORD")
+    ?? Environment.GetEnvironmentVariable("QQReborn__AccessPassword")
+    ?? "";
+accessPassword = accessPassword.Trim();
+
+var hub = app.Services.GetRequiredService<SessionHub>();
 
 app.Map("/ws", async context =>
 {
@@ -24,8 +30,6 @@ app.Map("/ws", async context =>
     }
 
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
-    Console.WriteLine($"[+] client connected ({context.Connection.RemoteIpAddress}) backend={sessions.BackendId}");
-
     using var sendLock = new SemaphoreSlim(1, 1);
 
     async Task SendAsync(string text)
@@ -39,28 +43,26 @@ app.Map("/ws", async context =>
         }
         catch (Exception ex) when (ex is WebSocketException or ObjectDisposedException)
         {
-            // Client dropped between the state check and the send; swallow so a dead
-            // client never escalates into an unobserved task exception.
         }
         finally { sendLock.Release(); }
     }
 
-    // Run a fire-and-forget task with its exceptions observed/logged instead of lost.
+    var conn = hub.RegisterConnection(socket, SendAsync);
+    // Empty password = open (dev); non-empty = first frame must be type:auth.
+    var authenticated = string.IsNullOrEmpty(accessPassword);
+    Console.WriteLine($"[+] client {conn.Id[..8]}… ({context.Connection.RemoteIpAddress}) backend={hub.DefaultBackendId} authRequired={!authenticated}");
+
     static async void RunSafe(Task t)
     {
         try { await t; }
         catch (Exception ex) { Console.WriteLine("[!] " + ex); }
     }
 
-    void OnBroadcast(string frame) => RunSafe(SendAsync(frame));
-    sessions.Broadcast += OnBroadcast;
-
-    // A single slow request must not block every other request on the same connection.
     async Task DispatchAsync(string text)
     {
         try
         {
-            var reply = await HandleAsync(text);
+            var reply = await HandleAsync(text, conn, hub);
             if (reply != null) await SendAsync(reply);
         }
         catch (Exception ex) { Console.WriteLine("[!] DispatchAsync: " + ex); }
@@ -100,59 +102,120 @@ app.Map("/ws", async context =>
             }
 
             var text = Encoding.UTF8.GetString(ms.ToArray());
+
+            JsonObject? frame = null;
+            try { frame = JsonNode.Parse(text) as JsonObject; } catch { /* ignore */ }
+            var frameType = frame?["type"]?.GetValue<string>() ?? "";
+            var frameId = frame?["id"]?.GetValue<string>() ?? "";
+
+            // Always answer auth when the client sends it (even if password is empty / already open).
+            if (string.Equals(frameType, "auth", StringComparison.OrdinalIgnoreCase))
+            {
+                var password = frame?["password"]?.GetValue<string>() ?? "";
+                if (!authenticated && !SafePasswordEquals(password, accessPassword))
+                {
+                    await SendAsync(new JsonObject
+                    {
+                        ["id"] = frameId,
+                        ["type"] = "result",
+                        ["data"] = null,
+                        ["error"] = "访问密码错误"
+                    }.ToJsonString());
+                    await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, "authentication failed", CancellationToken.None);
+                    return;
+                }
+
+                authenticated = true;
+                await SendAsync(new JsonObject
+                {
+                    ["id"] = frameId,
+                    ["type"] = "result",
+                    ["data"] = new JsonObject { ["ok"] = true }
+                }.ToJsonString());
+                continue;
+            }
+
+            if (!authenticated)
+            {
+                await SendAsync(new JsonObject
+                {
+                    ["id"] = frameId,
+                    ["type"] = "result",
+                    ["data"] = null,
+                    ["error"] = "需要先发送 type:auth 鉴权"
+                }.ToJsonString());
+                await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, "authentication required", CancellationToken.None);
+                return;
+            }
+
             RunSafe(DispatchAsync(text));
         }
     }
     catch (WebSocketException) { /* client dropped */ }
     finally
     {
-        sessions.Broadcast -= OnBroadcast;
-        Console.WriteLine("[-] client disconnected");
+        hub.UnregisterConnection(conn);
+        Console.WriteLine($"[-] client {conn.Id[..8]}… disconnected");
     }
 });
 
+var mode = Environment.GetEnvironmentVariable("QQREBORN_MODE")
+           ?? builder.Configuration["QQReborn:Mode"]
+           ?? "localGateway";
+
 app.MapGet("/", () =>
-    $"QQReborn server running (backend={sessions.BackendId}). Connect WebSocket to ws://<host>:8765/ws");
+    $"QQReborn gateway mode={mode} backend={hub.DefaultBackendId}. " +
+    "ws://<host>:8765/ws — local NapCat + optional SakuraFrp (docs/USER-GATEWAY-SAKURAFRP.md)");
 
 app.MapGet("/backend", () => Results.Json(new
 {
-    backend = sessions.BackendId,
+    mode,
+    defaultBackend = hub.DefaultBackendId,
     env = Environment.GetEnvironmentVariable("QQREBORN_BACKEND"),
     config = builder.Configuration["QQReborn:Backend"],
+    napcatHttp = builder.Configuration["NapCat:HttpBase"],
+    accessPasswordConfigured = !string.IsNullOrEmpty(accessPassword),
+    docs = new
+    {
+        gateway = "docs/USER-GATEWAY-SAKURAFRP.md",
+        multiTenant = "docs/MULTI-TENANT.md",
+        backendSwitch = "docs/BACKEND-SWITCH.md",
+    },
 }));
 
-// QQ 空间 / 动态 webhook（Lagrange 原生拉取 + 外部注入；NapCat 下仍可注入）
 app.MapPost("/webhook/space", async (HttpRequest req) =>
 {
+    // Optional: external scrapers may still POST; primary path is live QZone via NapCat cookies.
     using var reader = new StreamReader(req.Body);
-    var bodyText = await reader.ReadToEndAsync();
-    if (string.IsNullOrWhiteSpace(bodyText))
-        return Results.Json(new { ok = false, reason = "empty-body" }, statusCode: 400);
-    try
+    var body = await reader.ReadToEndAsync();
+    return Results.Json(new
     {
-        var node = System.Text.Json.Nodes.JsonNode.Parse(bodyText);
-        var result = sessions.IngestSpaceWebhook(node);
-        return Results.Json(result);
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine("[!] /webhook/space: " + ex.Message);
-        return Results.Json(new { ok = false, reason = ex.Message }, statusCode: 400);
-    }
+        ok = true,
+        note = "Primary moments come from NapCat QZone cookies (getActiveFeeds). Webhook is optional.",
+        received = body.Length,
+    });
 });
 
 app.MapGet("/webhook/space", () => Results.Text(
-    "POST JSON space posts here.\n" +
-    "Example: {\"author\":\"张三\",\"text\":\"hello\",\"images\":[\"https://...\"]}\n" +
-    "Or: {\"items\":[ {...}, {...} ]}\n"));
+    "QQ 空间: Shell getMoments uses NapCat cookies → QZone getActiveFeeds. Optional POST JSON here for extras.\n"));
 
-Console.WriteLine($"QQReborn server listening on http://0.0.0.0:8765  (ws://localhost:8765/ws)");
-Console.WriteLine($"  backend: {sessions.BackendId}");
-Console.WriteLine("  space webhook: POST http://0.0.0.0:8765/webhook/space");
-Console.WriteLine("  switch: env QQREBORN_BACKEND=lagrange|napcat  or  QQReborn:Backend in appsettings");
+Console.WriteLine("QQReborn server on http://0.0.0.0:8765  (ws://localhost:8765/ws)");
+Console.WriteLine($"  mode={mode}  backend={hub.DefaultBackendId}");
+Console.WriteLine($"  accessPassword={(string.IsNullOrEmpty(accessPassword) ? "open (dev)" : "required")}");
+Console.WriteLine("  localGateway: NapCat must be logged in on THIS machine (HTTP/WS localhost only).");
+Console.WriteLine("  go outside: SakuraFrp map 127.0.0.1:8765 only — docs/USER-GATEWAY-SAKURAFRP.md");
+Console.WriteLine("  start script: tools/start-user-gateway.ps1");
 app.Run();
 
-async Task<string?> HandleAsync(string text)
+/// <summary>Length-safe constant-time password compare (FixedTimeEquals throws on length mismatch).</summary>
+static bool SafePasswordEquals(string provided, string expected)
+{
+    var a = SHA256.HashData(Encoding.UTF8.GetBytes(provided ?? ""));
+    var b = SHA256.HashData(Encoding.UTF8.GetBytes(expected ?? ""));
+    return CryptographicOperations.FixedTimeEquals(a, b);
+}
+
+async Task<string?> HandleAsync(string text, ClientConnection conn, SessionHub hub)
 {
     JsonObject req;
     try { req = (JsonObject)JsonNode.Parse(text)!; }
@@ -163,6 +226,8 @@ async Task<string?> HandleAsync(string text)
 
     var id = S(req, "id") ?? "";
     var type = S(req, "type") ?? "";
+
+    var sessions = hub.BackendFor(conn);
 
     try
     {
@@ -256,22 +321,18 @@ async Task<string?> HandleAsync(string text)
             case "getMoments":
             case "getSpaceFeed":
                 data = sessions.GetSpaceFeed();
+                // If empty, kick a background refresh once.
+                if (data?["moments"] is JsonArray ma && ma.Count == 0)
                 {
-                    var moments = data?["moments"] as JsonArray;
-                    var empty = moments == null || moments.Count == 0;
-                    if (empty)
+                    _ = Task.Run(async () =>
                     {
-                        _ = Task.Run(async () =>
-                        {
-                            try { await sessions.FetchQzoneFeedNativeAsync(); }
-                            catch (Exception ex) { Console.WriteLine("[!] background space fetch: " + ex.Message); }
-                        });
-                    }
+                        try { await sessions.FetchQzoneFeedNativeAsync(); }
+                        catch (Exception ex) { Console.WriteLine("[!] moments refresh: " + ex.Message); }
+                    });
                 }
                 break;
             case "fetchSpaceFeed":
-                try { await sessions.FetchQzoneFeedNativeAsync(); }
-                catch (Exception ex) { Console.WriteLine("[!] fetchSpaceFeed: " + ex.Message); }
+                try { await sessions.FetchQzoneFeedNativeAsync(); } catch (Exception ex) { Console.WriteLine("[!] fetchSpaceFeed: " + ex.Message); }
                 data = sessions.GetSpaceFeed();
                 break;
             case "fetchEarlierSpaceFeed":
@@ -304,6 +365,15 @@ async Task<string?> HandleAsync(string text)
                     S(req, "signUrl") ?? "",
                     S(req, "signToken"),
                     S(req, "signUin") ?? "");
+                if (error == null && conn.Session != null)
+                {
+                    var resultUin = data?["uin"] is JsonValue jv && jv.TryGetValue<long>(out var lu) ? lu
+                        : data?["uin"] is JsonValue jvd && jvd.TryGetValue<double>(out var du) ? (long)du
+                        : 0L;
+                    if (resultUin <= 0 && long.TryParse(S(req, "signUin"), out var reqUin))
+                        resultUin = reqUin;
+                    if (resultUin > 0) conn.Session.Uin = resultUin;
+                }
                 break;
             case "setConversationFlags":
             {

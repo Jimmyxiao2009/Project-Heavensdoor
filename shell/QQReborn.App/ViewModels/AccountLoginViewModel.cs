@@ -5,9 +5,8 @@ using QQReborn.App.Services;
 
 namespace QQReborn.App.ViewModels
 {
-    /// <summary>Backs AccountLoginPage. Reads sign-server config from Settings; the actual
-    /// QR/status updates are pushed into this VM by the page's code-behind (which owns the
-    /// RemoteChatService subscription -- see AccountLoginPage.xaml.cs).</summary>
+    /// <summary>Backs AccountLoginPage. NapCat local gateway: connect with host/port/password
+    /// from Settings; no QR / Lagrange sign required.</summary>
     public class AccountLoginViewModel : ObservableObject
     {
         private readonly IProfileService _profile;
@@ -35,32 +34,24 @@ namespace QQReborn.App.ViewModels
         private bool _isBusy;
         public bool IsBusy { get => _isBusy; set => Set(ref _isBusy, value); }
 
-        /// <summary>Sign server URL to use -- the official Lagrange URL unless the user
-        /// opted into a self-hosted one in Settings.</summary>
-        public string SignServerUrl { get; private set; } = "https://sign.lagrangecore.org";
+        /// <summary>Unused on NapCat path (kept for wire compatibility).</summary>
+        public string SignServerUrl { get; private set; } = "";
         public string SignToken { get; private set; } = "";
         public string SignUin { get; private set; } = "";
 
         public async Task LoadSettingsAsync()
         {
             var settings = await _profile.GetSettingsAsync();
-            SignServerUrl = settings.UseSelfHostedSignServer
-                ? settings.SignServerUrl
-                : "https://sign.lagrangecore.org";
-            SignToken = settings.SignToken ?? "";
+            SignServerUrl = "";
+            SignToken = "";
+            // Optional: if user still has a QQ number in settings, send it for mismatch check.
             SignUin = settings.SignUin ?? "";
 
-            if (string.IsNullOrWhiteSpace(SignUin))
-            {
-                StatusText = "还没填QQ号";
-                StatusDetailText = "先去设置页的\"账号\"栏填 API Key 和 QQ 号，再回来点开始登录";
-                ShowStartButton = false;
-            }
-            else
-            {
-                StatusText = "准备就绪";
-                StatusDetailText = "点击开始登录，扫码用的二维码会出现在这里";
-            }
+            StatusText = "准备连接网关";
+            StatusDetailText = "将使用设置里的服务器地址、端口和访问密码。"
+                + " 号在电脑 NapCat/NTQQ 中已登录即可，无需扫码。"
+                + " 出门请把地址改成 SakuraFrp 主机。";
+            ShowStartButton = true;
         }
     }
 }

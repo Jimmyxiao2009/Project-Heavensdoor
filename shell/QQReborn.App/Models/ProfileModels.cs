@@ -19,12 +19,17 @@ namespace QQReborn.App.Models
         public int FontSizeLevel { get; set; } = 1;
 
         /// <summary>Host of the fake/real server (no scheme/port); "localhost" on desktop,
-        /// the PC's LAN IP on a phone. Consumed by RemoteChatService when remote backend is on.</summary>
+        /// the PC's LAN IP on a phone, or SakuraFrp access host when outdoors.</summary>
         public string ServerHost { get; set; } = "localhost";
+
+        /// <summary>Wire port (default 8765). Set to SakuraFrp remote port when it is not 8765.</summary>
+        public int ServerPort { get; set; } = 8765;
+
+        public string AccessPassword { get; set; } = "";
 
         /// <summary>Where the real-account sign (T544) requests go: false = Lagrange's
         /// official community sign service (needs a #signer-registered API key), true = a
-        /// self-hosted sign server the user points at directly.</summary>
+        /// self-hosted sign server the user points at directly. Unused for NapCat local gateway.</summary>
         public bool UseSelfHostedSignServer { get; set; } = false;
 
         /// <summary>Sign server base URL. Ignored (assumed to be the official Lagrange URL)
@@ -37,5 +42,25 @@ namespace QQReborn.App.Models
 
         /// <summary>QQ number to log in as.</summary>
         public string SignUin { get; set; } = "";
+
+        // ---- 实用功能 (LocalSettings; defaults favour QQ-like power user) ----
+
+        /// <summary>Keep peer-recalled messages visible locally (防撤回).</summary>
+        public bool AntiRecall { get; set; } = true;
+
+        /// <summary>Show a system tip when a message is recalled (even with anti-recall).</summary>
+        public bool ShowRevokeNotice { get; set; } = true;
+
+        /// <summary>Double-tap an incoming bubble to poke/nudge.</summary>
+        public bool DoubleTapNudge { get; set; } = true;
+
+        /// <summary>Confirm dialog before sending text/image.</summary>
+        public bool ConfirmBeforeSend { get; set; } = false;
+
+        /// <summary>When multi-copying, prefix each line with sender name.</summary>
+        public bool CopyWithSender { get; set; } = true;
+
+        /// <summary>Vibrate on new message when notifications are on (phone).</summary>
+        public bool VibrateOnMessage { get; set; } = false;
     }
 }

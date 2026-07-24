@@ -64,35 +64,37 @@ namespace QQReborn.App.ViewModels
         }
 
         private string _serverHost = "localhost";
-        /// <summary>Server host (no scheme/port) used by the remote backend. On a phone set the
-        /// PC's LAN IP so the device can reach the server; "localhost" is the desktop default.</summary>
+        /// <summary>Server host (no scheme). localhost / LAN IP / SakuraFrp host.</summary>
         public string ServerHost
         {
             get => _serverHost;
             set { if (Set(ref _serverHost, value)) Persist(); }
         }
 
+        private string _serverPortText = "8765";
+        /// <summary>Wire port as text for the TextBox. Default 8765; Frp remote port when outdoors.</summary>
+        public string ServerPortText
+        {
+            get => _serverPortText;
+            set { if (Set(ref _serverPortText, value)) Persist(); }
+        }
+
+        private string _accessPassword = "";
+        public string AccessPassword
+        {
+            get => _accessPassword;
+            set { if (Set(ref _accessPassword, value)) Persist(); }
+        }
+
+        // Legacy sign fields kept for LocalSettings compatibility only (UI removed; NapCat path).
         private bool _useSelfHostedSignServer;
-        /// <summary>false = Lagrange's official community sign service (needs an API key from
-        /// #signer registration), true = a self-hosted sign server the user points at directly.</summary>
         public bool UseSelfHostedSignServer
         {
             get => _useSelfHostedSignServer;
-            set
-            {
-                if (Set(ref _useSelfHostedSignServer, value))
-                {
-                    RaisePropertyChanged(nameof(ShowOfficialSignFields));
-                    Persist();
-                }
-            }
+            set { if (Set(ref _useSelfHostedSignServer, value)) Persist(); }
         }
 
-        /// <summary>Inverse of <see cref="UseSelfHostedSignServer"/>, for showing the official-only fields.</summary>
-        public bool ShowOfficialSignFields => !_useSelfHostedSignServer;
-
-        private string _signServerUrl = "https://sign.lagrangecore.org";
-        /// <summary>Only used/shown when UseSelfHostedSignServer is true.</summary>
+        private string _signServerUrl = "";
         public string SignServerUrl
         {
             get => _signServerUrl;
@@ -128,6 +130,48 @@ namespace QQReborn.App.ViewModels
             set => Set(ref _downloadFolderPath, value);
         }
 
+        private bool _antiRecall = true;
+        public bool AntiRecall
+        {
+            get => _antiRecall;
+            set { if (Set(ref _antiRecall, value)) Persist(); }
+        }
+
+        private bool _showRevokeNotice = true;
+        public bool ShowRevokeNotice
+        {
+            get => _showRevokeNotice;
+            set { if (Set(ref _showRevokeNotice, value)) Persist(); }
+        }
+
+        private bool _doubleTapNudge = true;
+        public bool DoubleTapNudge
+        {
+            get => _doubleTapNudge;
+            set { if (Set(ref _doubleTapNudge, value)) Persist(); }
+        }
+
+        private bool _confirmBeforeSend;
+        public bool ConfirmBeforeSend
+        {
+            get => _confirmBeforeSend;
+            set { if (Set(ref _confirmBeforeSend, value)) Persist(); }
+        }
+
+        private bool _copyWithSender = true;
+        public bool CopyWithSender
+        {
+            get => _copyWithSender;
+            set { if (Set(ref _copyWithSender, value)) Persist(); }
+        }
+
+        private bool _vibrateOnMessage;
+        public bool VibrateOnMessage
+        {
+            get => _vibrateOnMessage;
+            set { if (Set(ref _vibrateOnMessage, value)) Persist(); }
+        }
+
         public async Task LoadAsync()
         {
             if (_isLoaded) return;
@@ -140,20 +184,32 @@ namespace QQReborn.App.ViewModels
             _enterToSend = _settings.EnterToSend;
             _fontSizeLevel = _settings.FontSizeLevel;
             _serverHost = string.IsNullOrWhiteSpace(_settings.ServerHost) ? "localhost" : _settings.ServerHost;
+            var port = _settings.ServerPort > 0 && _settings.ServerPort < 65536 ? _settings.ServerPort : 8765;
+            _serverPortText = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _accessPassword = _settings.AccessPassword ?? "";
             _useSelfHostedSignServer = _settings.UseSelfHostedSignServer;
-            _signServerUrl = string.IsNullOrWhiteSpace(_settings.SignServerUrl) ? "https://sign.lagrangecore.org" : _settings.SignServerUrl;
+            _signServerUrl = _settings.SignServerUrl ?? "";
             _signToken = _settings.SignToken ?? "";
             _signUin = _settings.SignUin ?? "";
+            _antiRecall = _settings.AntiRecall;
+            _showRevokeNotice = _settings.ShowRevokeNotice;
+            _doubleTapNudge = _settings.DoubleTapNudge;
+            _confirmBeforeSend = _settings.ConfirmBeforeSend;
+            _copyWithSender = _settings.CopyWithSender;
+            _vibrateOnMessage = _settings.VibrateOnMessage;
             RaisePropertyChanged(nameof(Notifications));
             RaisePropertyChanged(nameof(EnterToSend));
             RaisePropertyChanged(nameof(FontSizeLevel));
             RaisePropertyChanged(nameof(FontSizeText));
             RaisePropertyChanged(nameof(ServerHost));
-            RaisePropertyChanged(nameof(UseSelfHostedSignServer));
-            RaisePropertyChanged(nameof(ShowOfficialSignFields));
-            RaisePropertyChanged(nameof(SignServerUrl));
-            RaisePropertyChanged(nameof(SignToken));
-            RaisePropertyChanged(nameof(SignUin));
+            RaisePropertyChanged(nameof(ServerPortText));
+            RaisePropertyChanged(nameof(AccessPassword));
+            RaisePropertyChanged(nameof(AntiRecall));
+            RaisePropertyChanged(nameof(ShowRevokeNotice));
+            RaisePropertyChanged(nameof(DoubleTapNudge));
+            RaisePropertyChanged(nameof(ConfirmBeforeSend));
+            RaisePropertyChanged(nameof(CopyWithSender));
+            RaisePropertyChanged(nameof(VibrateOnMessage));
         }
 
         public async Task ClearCacheAsync()
@@ -176,10 +232,21 @@ namespace QQReborn.App.ViewModels
                 _settings.EnterToSend = _enterToSend;
                 _settings.FontSizeLevel = (int)System.Math.Round(_fontSizeLevel);
                 _settings.ServerHost = Truncate(_serverHost);
+                int port;
+                if (!int.TryParse((_serverPortText ?? "").Trim(), out port) || port <= 0 || port >= 65536)
+                    port = 8765;
+                _settings.ServerPort = port;
+                _settings.AccessPassword = Truncate(_accessPassword);
                 _settings.UseSelfHostedSignServer = _useSelfHostedSignServer;
                 _settings.SignServerUrl = Truncate(_signServerUrl);
                 _settings.SignToken = Truncate(_signToken);
                 _settings.SignUin = Truncate(_signUin);
+                _settings.AntiRecall = _antiRecall;
+                _settings.ShowRevokeNotice = _showRevokeNotice;
+                _settings.DoubleTapNudge = _doubleTapNudge;
+                _settings.ConfirmBeforeSend = _confirmBeforeSend;
+                _settings.CopyWithSender = _copyWithSender;
+                _settings.VibrateOnMessage = _vibrateOnMessage;
                 await _profile.SaveSettingsAsync(_settings);
             }
             catch (Exception ex)

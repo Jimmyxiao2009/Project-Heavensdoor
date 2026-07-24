@@ -7,11 +7,6 @@
     <RootNamespace>QQReborn.RealServer</RootNamespace>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- Real LagrangeV2-backed bridge: speaks the same WS wire protocol as
-         QQReborn.FakeServer but is backed by a live BotContext instead of canned data. -->
-    <ProjectReference Include="..\QQReborn.Signing\QQReborn.Signing.csproj" />
-    <ProjectReference Include="..\..\_ref\LagrangeV2\Lagrange.Core\Lagrange.Core.csproj" />
-  </ItemGroup>
+  <!-- NapCat local gateway only — no Lagrange.Core / QQReborn.Signing references. -->
 
 </Project>

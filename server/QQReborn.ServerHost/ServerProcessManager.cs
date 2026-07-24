@@ -3,22 +3,22 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace QQReborn.ServerHost;
 
-/// <summary>Starts/stops RealServer and LocalSignProxy as child processes and captures stdout.</summary>
+/// <summary>Starts/stops RealServer (NapCat gateway) as a child process and captures stdout.</summary>
 public sealed class ServerProcessManager : IDisposable
 {
     private Process? _realServer;
-    private Process? _signProxy;
     private readonly object _gate = new();
 
     public string RepoRoot { get; }
     public int RealServerPort { get; set; } = 8765;
-    public int SignProxyPort { get; set; } = 18488;
 
-    /// <summary>lagrange | napcat — injected as QQREBORN_BACKEND when starting RealServer.</summary>
-    public string Backend { get; set; } = "lagrange";
+    /// <summary>Always napcat for the product steward.</summary>
+    public string Backend { get; set; } = "napcat";
+    public string AccessPassword { get; set; }
 
     public string NapCatHttp { get; set; } = "http://127.0.0.1:3000";
     public string NapCatWs { get; set; } = "ws://127.0.0.1:3001";
@@ -29,16 +29,12 @@ public sealed class ServerProcessManager : IDisposable
         get { lock (_gate) return _realServer is { HasExited: false }; }
     }
 
-    public bool SignProxyRunning
-    {
-        get { lock (_gate) return _signProxy is { HasExited: false }; }
-    }
-
     public event Action<string>? LogLine;
 
     public ServerProcessManager()
     {
         RepoRoot = FindRepoRoot();
+        AccessPassword = LoadAccessPassword();
     }
 
     public async Task StartRealServerAsync()
@@ -77,159 +73,76 @@ public sealed class ServerProcessManager : IDisposable
             Append($"Starting RealServer via: dotnet run ({proj})");
         }
 
-        ApplyBackendEnvironment(psi);
-        Append($"Backend = {Backend}");
+        ApplyGatewayEnvironment(psi);
+        Append("Backend = napcat (local gateway)");
         var p = StartCaptured(psi);
         lock (_gate) _realServer = p;
 
-        // Wait briefly for listen
         for (var i = 0; i < 40; i++)
         {
             await Task.Delay(250);
             if (!RealServerRunning) break;
             if (await ProbeAsync($"http://127.0.0.1:{RealServerPort}/"))
             {
-                Append($"RealServer is up → http://0.0.0.0:{RealServerPort}  ws://127.0.0.1:{RealServerPort}/ws");
+                Append($"网关已启动 → http://0.0.0.0:{RealServerPort}  ws://127.0.0.1:{RealServerPort}/ws");
                 return;
             }
         }
         Append("RealServer process started (probe still pending — check log).");
     }
 
-    private void ApplyBackendEnvironment(ProcessStartInfo psi)
+    private void ApplyGatewayEnvironment(ProcessStartInfo psi)
     {
-        var backend = string.IsNullOrWhiteSpace(Backend) ? "lagrange" : Backend.Trim().ToLowerInvariant();
-        psi.Environment["QQREBORN_BACKEND"] = backend;
-        if (backend is "napcat" or "onebot" or "ob11")
-        {
-            if (!string.IsNullOrWhiteSpace(NapCatHttp))
-                psi.Environment["NAPCAT_HTTP"] = NapCatHttp.Trim();
-            if (!string.IsNullOrWhiteSpace(NapCatWs))
-                psi.Environment["NAPCAT_WS"] = NapCatWs.Trim();
-            if (!string.IsNullOrWhiteSpace(NapCatToken))
-                psi.Environment["NAPCAT_TOKEN"] = NapCatToken.Trim();
-        }
-    }
-
-    public async Task StartSignProxyAsync()
-    {
-        // NapCat does not need our LocalSignProxy; skip if user only wants NapCat stack.
-        if (string.Equals(Backend, "napcat", StringComparison.OrdinalIgnoreCase))
-        {
-            Append("Skip LocalSignProxy (NapCat backend — NTQQ owns signing).");
-            return;
-        }
-        if (SignProxyRunning) { Append("LocalSignProxy already running."); return; }
-
-        var exe = FindSignProxyExe();
-        ProcessStartInfo psi;
-        if (exe != null)
-        {
-            psi = new ProcessStartInfo
-            {
-                FileName = exe,
-                WorkingDirectory = Path.GetDirectoryName(exe)!,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            Append($"Starting LocalSignProxy: {exe}");
-        }
-        else
-        {
-            var proj = Path.Combine(RepoRoot, "tools", "LocalSignProxy", "LocalSignProxy.csproj");
-            if (!File.Exists(proj))
-            {
-                Append("LocalSignProxy project not found — skip.");
-                return;
-            }
-            psi = new ProcessStartInfo
-            {
-                FileName = "dotnet",
-                Arguments = $"run --project \"{proj}\" -c Release --no-build",
-                WorkingDirectory = RepoRoot,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-            };
-            // Build first if needed
-            try
-            {
-                Append("Building LocalSignProxy…");
-                var build = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "dotnet",
-                    Arguments = $"build \"{proj}\" -c Release -v q",
-                    WorkingDirectory = RepoRoot,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                });
-                if (build != null)
-                {
-                    await build.WaitForExitAsync();
-                    Append(build.ExitCode == 0 ? "LocalSignProxy build OK." : "LocalSignProxy build failed.");
-                }
-            }
-            catch (Exception ex) { Append("Build error: " + ex.Message); }
-
-            Append($"Starting LocalSignProxy via: dotnet run");
-        }
-
-        var p = StartCaptured(psi);
-        lock (_gate) _signProxy = p;
-
-        for (var i = 0; i < 30; i++)
-        {
-            await Task.Delay(200);
-            if (await ProbeAsync($"http://127.0.0.1:{SignProxyPort}/health"))
-            {
-                Append($"LocalSignProxy is up → http://127.0.0.1:{SignProxyPort}");
-                return;
-            }
-        }
-        Append("LocalSignProxy process started (probe still pending).");
+        psi.Environment["QQREBORN_BACKEND"] = "napcat";
+        psi.Environment["QQREBORN_MODE"] = "localGateway";
+        psi.Environment["QQReborn__AccessPassword"] = AccessPassword ?? "";
+        psi.Environment["QQREBORN_ACCESS_PASSWORD"] = AccessPassword ?? "";
+        if (!string.IsNullOrWhiteSpace(NapCatHttp))
+            psi.Environment["NAPCAT_HTTP"] = NapCatHttp.Trim();
+        if (!string.IsNullOrWhiteSpace(NapCatWs))
+            psi.Environment["NAPCAT_WS"] = NapCatWs.Trim();
+        if (!string.IsNullOrWhiteSpace(NapCatToken))
+            psi.Environment["NAPCAT_TOKEN"] = NapCatToken.Trim();
     }
 
     public async Task StartAllAsync()
     {
-        await StartSignProxyAsync();
+        SaveAccessPassword(AccessPassword);
+        await CheckNapCatAsync();
         await StartRealServerAsync();
+    }
+
+    public async Task<bool> CheckNapCatAsync()
+    {
+        var url = NapCatHttp.TrimEnd('/') + "/get_login_info";
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            if (!string.IsNullOrWhiteSpace(NapCatToken))
+                http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", NapCatToken);
+            using var response = await http.PostAsync(url, new StringContent("{}", Encoding.UTF8, "application/json"));
+            var body = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                Append($"NapCat 检测失败: HTTP {(int)response.StatusCode} {body}");
+                return false;
+            }
+            using var doc = JsonDocument.Parse(body);
+            var userId = doc.RootElement.TryGetProperty("data", out var data)
+                && data.TryGetProperty("user_id", out var uid) ? uid.ToString() : "未知账号";
+            Append($"NapCat 在线: QQ {userId} ({NapCatHttp})");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Append($"NapCat 未连接: {NapCatHttp}；请确认 NTQQ+NapCat 已登录并开启 OneBot HTTP API ({ex.Message})");
+            return false;
+        }
     }
 
     public void StopAll()
     {
-        StopOne(ref _signProxy, "LocalSignProxy");
         StopOne(ref _realServer, "RealServer");
-    }
-
-    public async Task<string> TestSpaceWebhookAsync(string? author = null, string? text = null)
-    {
-        var url = $"http://127.0.0.1:{RealServerPort}/webhook/space";
-        var payload = new
-        {
-            author = author ?? "测试用户",
-            text = text ?? ("面板自测动态 " + DateTime.Now.ToString("HH:mm:ss")),
-            time = DateTimeOffset.Now.ToString("o"),
-            images = Array.Empty<string>(),
-        };
-        var json = JsonSerializer.Serialize(payload);
-        try
-        {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var resp = await http.PostAsync(url, new StringContent(json, Encoding.UTF8, "application/json"));
-            var body = await resp.Content.ReadAsStringAsync();
-            Append($"Webhook POST {url} → {(int)resp.StatusCode} {body}");
-            return body;
-        }
-        catch (Exception ex)
-        {
-            Append("Webhook test failed: " + ex.Message);
-            return ex.Message;
-        }
     }
 
     private Process StartCaptured(ProcessStartInfo psi)
@@ -292,17 +205,6 @@ public sealed class ServerProcessManager : IDisposable
         return candidates.FirstOrDefault(File.Exists);
     }
 
-    private string? FindSignProxyExe()
-    {
-        var candidates = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, "LocalSignProxy", "LocalSignProxy.exe"),
-            Path.Combine(AppContext.BaseDirectory, "LocalSignProxy.exe"),
-            Path.Combine(RepoRoot, "tools", "LocalSignProxy", "bin", "Release", "net10.0", "LocalSignProxy.exe"),
-        };
-        return candidates.FirstOrDefault(File.Exists);
-    }
-
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -313,7 +215,6 @@ public sealed class ServerProcessManager : IDisposable
                 return dir.FullName;
             dir = dir.Parent;
         }
-        // Fall back: walk up from cwd
         dir = new DirectoryInfo(Directory.GetCurrentDirectory());
         while (dir != null)
         {
@@ -325,4 +226,33 @@ public sealed class ServerProcessManager : IDisposable
     }
 
     public void Dispose() => StopAll();
+
+    private static string AccessPasswordPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "QQReborn", "gateway.json");
+
+    private static string LoadAccessPassword()
+    {
+        try
+        {
+            if (File.Exists(AccessPasswordPath))
+            {
+                var doc = JsonDocument.Parse(File.ReadAllText(AccessPasswordPath));
+                var value = doc.RootElement.GetProperty("accessPassword").GetString();
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
+        }
+        catch { }
+        return Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+    }
+
+    private static void SaveAccessPassword(string value)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(AccessPasswordPath)!);
+            File.WriteAllText(AccessPasswordPath, JsonSerializer.Serialize(new { accessPassword = value }));
+        }
+        catch { }
+    }
 }

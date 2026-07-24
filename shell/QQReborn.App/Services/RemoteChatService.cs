@@ -36,12 +36,22 @@ namespace QQReborn.App.Services
         public string Message { get; set; }
     }
 
+    /// <summary>Pushed when NapCat reports a friend/group message recall.</summary>
+    public class MessageRecalledInfo
+    {
+        public string ConversationId { get; set; }
+        public string MessageId { get; set; }
+        public long NapCatMessageId { get; set; }
+        public long OperatorUin { get; set; }
+        public long SenderUin { get; set; }
+        public string SenderName { get; set; }
+        public string Preview { get; set; }
+    }
+
     /// <summary>
-    /// IChatService backed by a WebSocket server -- either the local fake demo server
-    /// (QQReborn.FakeServer) or the real LagrangeV2-backed bridge (QQReborn.RealServer),
-    /// both speak the same wire protocol on the same port. QrCodeReceived/LoginStatusChanged
-    /// are RealServer-only additions (not part of IChatService -- MockChatService has no
-    /// QR-login concept), consumed by AccountLoginPage.
+    /// IChatService backed by a WebSocket gateway (QQReborn.RealServer NapCat local gateway
+    /// or FakeServer). Wire protocol on /ws. LoginStatusChanged is used after configureAccount
+    /// binds the NapCat-logged-in account.
     /// </summary>
     public class RemoteChatService : IChatService
     {
@@ -49,27 +59,42 @@ namespace QQReborn.App.Services
         // For the phone, set the PC's LAN IP (e.g. "192.168.1.10") in the
         // LocalSettings key below so the device can reach the server without a recompile.
         private const string ServerHostSettingKey = "qqr.settings.serverHost";
-        private const int ServerPort = 8765;
+        private const string ServerPortSettingKey = "qqr.settings.serverPort";
+        private const string AccessPasswordSettingKey = "qqr.settings.accessPassword";
+        private const int DefaultServerPort = 8765;
         private const string DefaultServerHost = "localhost";
 
         /// <summary>
-        /// Builds "ws://{host}:8765/ws" from the persisted host setting, defaulting to
-        /// localhost. The host can be overridden at runtime via LocalSettings so the
-        /// phone scenario works (enter the PC's LAN IP) without changing code.
+        /// Builds "ws://{host}:{port}/ws" from LocalSettings.
+        /// Host: localhost / LAN IP / SakuraFrp access host.
+        /// Port: 8765 at home, or the Frp remote port when outdoors.
         /// </summary>
         private static string BuildServerUrl()
         {
             var host = DefaultServerHost;
+            var port = DefaultServerPort;
             try
             {
                 var raw = Windows.Storage.ApplicationData.Current.LocalSettings.Values[ServerHostSettingKey] as string;
                 if (!string.IsNullOrWhiteSpace(raw)) host = raw.Trim();
+                var pr = Windows.Storage.ApplicationData.Current.LocalSettings.Values[ServerPortSettingKey];
+                if (pr is int pi && pi > 0 && pi < 65536) port = pi;
+                else if (pr is string ps && int.TryParse(ps, out var pp) && pp > 0 && pp < 65536) port = pp;
             }
             catch
             {
                 // LocalSettings unavailable (e.g. unit test host) -> keep default.
             }
-            return "ws://" + host + ":" + ServerPort.ToString(CultureInfo.InvariantCulture) + "/ws";
+            return "ws://" + host + ":" + port.ToString(CultureInfo.InvariantCulture) + "/ws";
+        }
+
+        private static string ReadAccessPassword()
+        {
+            try
+            {
+                return ApplicationData.Current.LocalSettings.Values[AccessPasswordSettingKey] as string ?? "";
+            }
+            catch { return ""; }
         }
 
         private MessageWebSocket _ws;
@@ -94,6 +119,7 @@ namespace QQReborn.App.Services
             = new ConcurrentDictionary<string, TaskCompletionSource<string>>();
 
         public event EventHandler<ChatMessage> MessageReceived;
+        public event EventHandler<MessageRecalledInfo> MessageRecalled;
         public event EventHandler<TypingState> TypingChanged;
         public event EventHandler<QrCodeInfo> QrCodeReceived;
         public event EventHandler<LoginStatusInfo> LoginStatusChanged;
@@ -132,6 +158,7 @@ namespace QQReborn.App.Services
                 await connectTask;
                 _writer = new DataWriter(_ws.OutputStream);
                 _connected = true;
+                await AuthenticateAsync();
                 _everConnected = true;
             }
             catch
@@ -140,6 +167,39 @@ namespace QQReborn.App.Services
                 throw;
             }
             finally { _connLock.Release(); }
+        }
+
+        private async Task AuthenticateAsync()
+        {
+            var id = Guid.NewGuid().ToString("N");
+            var req = new JsonObject
+            {
+                ["id"] = JsonValue.CreateStringValue(id),
+                ["type"] = JsonValue.CreateStringValue("auth"),
+                ["password"] = JsonValue.CreateStringValue(ReadAccessPassword())
+            };
+            var tcs = new TaskCompletionSource<string>();
+            _pending[id] = tcs;
+            await _writeLock.WaitAsync();
+            try
+            {
+                if (_writer == null) throw new InvalidOperationException("连接已关闭");
+                _writer.WriteString(req.Stringify());
+                await _writer.StoreAsync();
+            }
+            catch
+            {
+                _pending.TryRemove(id, out _);
+                HandleConnectionDead();
+                throw;
+            }
+            finally { _writeLock.Release(); }
+
+            using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+            using (cts.Token.Register(() => { if (_pending.TryRemove(id, out var t)) t.TrySetException(new TimeoutException("网关鉴权超时")); }))
+            {
+                await tcs.Task;
+            }
         }
 
         /// <summary>Detach handlers and dispose the current socket/writer. Caller must hold _connLock
@@ -307,6 +367,21 @@ namespace QQReborn.App.Services
             {
                 var msg = ParseMessage(frame.GetNamedObject("data"));
                 RunOnUi(() => MessageReceived?.Invoke(this, msg));
+            }
+            else if (type == "messageRecalled")
+            {
+                var data = frame.GetNamedObject("data");
+                var info = new MessageRecalledInfo
+                {
+                    ConversationId = Str(data, "conversationId"),
+                    MessageId = Str(data, "messageId"),
+                    NapCatMessageId = (long)data.GetNamedNumber("napcatMessageId", 0),
+                    OperatorUin = (long)data.GetNamedNumber("operatorUin", 0),
+                    SenderUin = (long)data.GetNamedNumber("senderUin", 0),
+                    SenderName = Str(data, "senderName"),
+                    Preview = Str(data, "preview"),
+                };
+                RunOnUi(() => MessageRecalled?.Invoke(this, info));
             }
             else if (type == "typing")
             {

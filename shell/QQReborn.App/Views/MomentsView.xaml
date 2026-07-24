@@ -25,7 +25,7 @@
 
         <!-- 一条动态卡片 -->
         <DataTemplate x:Key="MomentItemTemplate" x:DataType="models:Moment">
-            <Grid Margin="0,0,20,0" Padding="0,16,0,16">
+            <Grid Margin="0,0,19,0" Padding="0,14,0,18">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />

@@ -1,19 +1,27 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
+using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
 // ImageGalleryArgs / ImageGalleryItem live in Models
+using Windows.Graphics.Display;
+using Windows.Graphics.Imaging;
 using Windows.Media.Capture;
 using Windows.Storage.AccessCache;
 using Windows.Media.MediaProperties;
 using Windows.Storage;
 using Windows.Storage.Pickers;
+using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI.Core;
+using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using QQReborn.App.Models;
 using QQReborn.App.Services;
@@ -43,6 +51,8 @@ namespace QQReborn.App.Views
         // after the await and skips any further UI work on what is now a dead page -- see the
         // OnNavigatedTo/OnNavigatedFrom race explained below.
         private bool _hasLeft;
+
+        private bool _multiSelectMode;
 
         public ConversationPage()
         {
@@ -115,6 +125,8 @@ namespace QQReborn.App.Views
             App.ActiveConversationId = conv != null ? conv.Id : _vm.ConversationId;
             _chat.MessageReceived += OnMessageReceived;
             _chat.TypingChanged += OnTypingChanged;
+            if (_chat is RemoteChatService remoteRecall)
+                remoteRecall.MessageRecalled += OnMessageRecalled;
 
             if (needLoad)
             {
@@ -214,6 +226,9 @@ namespace QQReborn.App.Views
 
             _chat.MessageReceived -= OnMessageReceived;
             _chat.TypingChanged -= OnTypingChanged;
+            if (_chat is RemoteChatService remoteRecall)
+                remoteRecall.MessageRecalled -= OnMessageRecalled;
+            ExitMultiSelectMode();
             if (_isRecording) await StopRecordingAsync(send: false);
             if (_player != null) { _player.Dispose(); _player = null; }
             base.OnNavigatedFrom(e);
@@ -241,6 +256,17 @@ namespace QQReborn.App.Views
             }
         }
 
+        private async void OnMessageRecalled(object sender, MessageRecalledInfo info)
+        {
+            if (info == null) return;
+            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+            {
+                if (info.ConversationId != _vm.ConversationId) return;
+                _vm.ApplyPeerRecall(info.MessageId, info.NapCatMessageId, info.SenderName, info.Preview);
+                ScrollToBottom();
+            });
+        }
+
         private async void OnTypingChanged(object sender, TypingState state)
         {
             await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
@@ -256,8 +282,7 @@ namespace QQReborn.App.Views
 
         private async void SendButton_Click(object sender, RoutedEventArgs e)
         {
-            await _vm.SendAsync();
-            ScrollToBottom();
+            await TrySendAsync();
         }
 
         private async void InputBox_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -272,15 +297,170 @@ namespace QQReborn.App.Views
                 if (!shift)
                 {
                     e.Handled = true;
-                    await _vm.SendAsync();
-                    ScrollToBottom();
+                    await TrySendAsync();
                 }
             }
         }
 
+        private async Task TrySendAsync()
+        {
+            if (!_vm.CanSend) return;
+            if (UtilitySettings.ConfirmBeforeSend)
+            {
+                var dlg = new MessageDialog("确认发送这条消息？", "发送确认");
+                dlg.Commands.Add(new UICommand("发送", null, 1));
+                dlg.Commands.Add(new UICommand("取消", null, 0));
+                dlg.DefaultCommandIndex = 0;
+                dlg.CancelCommandIndex = 1;
+                var result = await dlg.ShowAsync();
+                if (result == null || !(result.Id is int id) || id != 1) return;
+            }
+            await _vm.SendAsync();
+            ScrollToBottom();
+        }
+
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_multiSelectMode)
+            {
+                ExitMultiSelectMode();
+                return;
+            }
             if (Frame.CanGoBack) Frame.GoBack();
+        }
+
+        // ---- multi-select ----
+
+        private void MultiSelectHeader_Click(object sender, RoutedEventArgs e)
+        {
+            if (_multiSelectMode) ExitMultiSelectMode();
+            else EnterMultiSelectMode(null);
+        }
+
+        private void EnterMultiSelectMode(ChatMessage preselect)
+        {
+            _multiSelectMode = true;
+            MessageList.SelectionMode = ListViewSelectionMode.Multiple;
+            MessageList.IsItemClickEnabled = false;
+            MessageList.SelectionChanged -= MessageList_SelectionChanged;
+            MessageList.SelectionChanged += MessageList_SelectionChanged;
+            if (preselect != null) MessageList.SelectedItems.Add(preselect);
+            InputBar.Visibility = Visibility.Collapsed;
+            MultiSelectBar.Visibility = Visibility.Visible;
+            EmojiPanel.Visibility = Visibility.Collapsed;
+            UpdateMultiSelectCount();
+        }
+
+        private void ExitMultiSelectMode()
+        {
+            if (!_multiSelectMode && MultiSelectBar != null && MultiSelectBar.Visibility != Visibility.Visible)
+                return;
+            _multiSelectMode = false;
+            if (MessageList != null)
+            {
+                MessageList.SelectionChanged -= MessageList_SelectionChanged;
+                MessageList.SelectedItems.Clear();
+                MessageList.SelectionMode = ListViewSelectionMode.None;
+            }
+            if (InputBar != null) InputBar.Visibility = Visibility.Visible;
+            if (MultiSelectBar != null) MultiSelectBar.Visibility = Visibility.Collapsed;
+        }
+
+        private void MessageList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateMultiSelectCount();
+        }
+
+        private void UpdateMultiSelectCount()
+        {
+            if (MultiSelectCountText == null || MessageList == null) return;
+            MultiSelectCountText.Text = "已选 " + MessageList.SelectedItems.Count + " 条";
+        }
+
+        private List<ChatMessage> GetSelectedMessages()
+        {
+            return MessageList.SelectedItems.OfType<ChatMessage>()
+                .Where(m => m != null && !m.IsSystem)
+                .OrderBy(m => m.Time)
+                .ToList();
+        }
+
+        private void MultiSelectCancel_Click(object sender, RoutedEventArgs e) => ExitMultiSelectMode();
+
+        private void MultiCopy_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetSelectedMessages();
+            if (selected.Count == 0) return;
+            var withSender = UtilitySettings.CopyWithSender;
+            var sb = new StringBuilder();
+            foreach (var m in selected)
+            {
+                var line = ConversationViewModel.FormatForCopy(m, withSender);
+                if (string.IsNullOrEmpty(line)) continue;
+                if (sb.Length > 0) sb.AppendLine();
+                sb.Append(line);
+            }
+            if (sb.Length == 0) return;
+            var data = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            data.SetText(sb.ToString());
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
+            _vm.AppendSystem("已复制 " + selected.Count + " 条消息");
+            ExitMultiSelectMode();
+        }
+
+        private async void MultiForward_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetSelectedMessages();
+            if (selected.Count == 0) return;
+            // Forward sequentially to the same target the user picks once.
+            System.Collections.Generic.IReadOnlyList<ChatConversation> conversations;
+            try { conversations = await _chat.GetConversationsAsync(); }
+            catch
+            {
+                _vm.AppendSystem("转发失败：服务器未连接");
+                return;
+            }
+            var list = new ListView { SelectionMode = ListViewSelectionMode.Single, MaxHeight = 360 };
+            foreach (var c in conversations) list.Items.Add(c);
+            list.DisplayMemberPath = "Title";
+            var dialog = new ContentDialog
+            {
+                Title = "转发 " + selected.Count + " 条到",
+                Content = list,
+                PrimaryButtonText = "发送",
+                SecondaryButtonText = "取消"
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+            var target = list.SelectedItem as ChatConversation;
+            if (target == null) return;
+            int ok = 0;
+            foreach (var m in selected)
+            {
+                try
+                {
+                    var sent = await _chat.ForwardMessageAsync(target.Id, m.Id);
+                    if (sent != null) ok++;
+                    if (target.Id == _vm.ConversationId && sent != null)
+                        _vm.AppendForwarded(sent);
+                }
+                catch { }
+            }
+            _vm.AppendSystem(ok > 0 ? ("已转发 " + ok + " 条") : "转发失败");
+            ScrollToBottom();
+            ExitMultiSelectMode();
+        }
+
+        private void MultiDelete_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetSelectedMessages();
+            foreach (var m in selected) _vm.DeleteMessage(m);
+            ExitMultiSelectMode();
+        }
+
+        private async void MultiScreenshot_Click(object sender, RoutedEventArgs e)
+        {
+            await MultiScreenshot_ClickAsync();
+            ExitMultiSelectMode();
         }
 
         // ---- group @mention ----
@@ -307,19 +487,41 @@ namespace QQReborn.App.Views
             {
                 members = await _chat.GetGroupMembersAsync(_vm.ConversationId);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine("ShowMentionPicker: " + ex.Message);
                 return;
             }
-            if (members == null || members.Count == 0) return;
+            if (members == null) members = Array.Empty<GroupMember>();
 
             var menu = new MenuFlyout { Placement = Windows.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Top };
-            foreach (var member in members)
+
+            // @全体成员
+            var allItem = new MenuFlyoutItem { Text = "全体成员" };
+            allItem.Click += (s, args) => InsertMention(new GroupMember { Uin = 0, Name = "全体成员", Role = "" });
+            menu.Items.Add(allItem);
+
+            // 群主/管理优先（服务端已排序，这里再稳妥排一次）
+            var ordered = members
+                .OrderBy(m => m != null && m.IsOwner ? 0 : (m != null && m.Role == "管理员" ? 1 : 2))
+                .ThenBy(m => m != null ? (m.Name ?? "") : "", StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var member in ordered)
             {
+                if (member == null || member.Uin <= 0) continue;
                 var captured = member;
-                var item = new MenuFlyoutItem { Text = string.IsNullOrEmpty(captured.Name) ? "群友" : captured.Name };
+                var label = string.IsNullOrEmpty(captured.Name) ? captured.Uin.ToString() : captured.Name;
+                if (!string.IsNullOrEmpty(captured.Role))
+                    label = label + "（" + captured.Role + "）";
+                var item = new MenuFlyoutItem { Text = label };
                 item.Click += (s, args) => InsertMention(captured);
                 menu.Items.Add(item);
+            }
+
+            if (menu.Items.Count <= 1 && ordered.Count == 0)
+            {
+                menu.Items.Add(new MenuFlyoutItem { Text = "暂无成员数据", IsEnabled = false });
             }
 
             _mentionFlyoutOpen = true;
@@ -329,13 +531,21 @@ namespace QQReborn.App.Views
 
         private void InsertMention(GroupMember member)
         {
-            var name = string.IsNullOrEmpty(member.Name) ? "群友" : member.Name;
+            var name = member == null || string.IsNullOrEmpty(member.Name)
+                ? (member != null && member.Uin > 0 ? member.Uin.ToString() : "全体成员")
+                : member.Name;
+            var display = name.StartsWith("@", StringComparison.Ordinal) ? name : ("@" + name);
             var text = _vm.Draft ?? string.Empty;
             // Replace the trailing "@" that opened the picker with "@昵称 ".
             if (text.Length > 0 && text[text.Length - 1] == '@')
                 text = text.Substring(0, text.Length - 1);
-            _vm.Draft = text + "@" + name + " ";
-            _vm.PendingMentions.Add(new ViewModels.ConversationViewModel.MentionInfo { Uin = member.Uin, Display = name });
+            _vm.Draft = text + display + " ";
+            _vm.PendingMentions.Add(new ViewModels.ConversationViewModel.MentionInfo
+            {
+                // uin=0 → NapCat at qq=all
+                Uin = member != null ? member.Uin : 0,
+                Display = display,
+            });
 
             // Put the caret at the end so typing continues naturally.
             InputBox.SelectionStart = InputBox.Text != null ? InputBox.Text.Length : 0;
@@ -432,6 +642,7 @@ namespace QQReborn.App.Views
 
         private async void Bubble_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
         {
+            if (!UtilitySettings.DoubleTapNudge) return;
             if (!((sender as FrameworkElement)?.DataContext is ChatMessage m)) return;
             if (!m.IsIncoming) return;
             e.Handled = true;
@@ -1200,24 +1411,30 @@ namespace QQReborn.App.Views
 
             var menu = new MenuFlyout();
 
-            if (m.IsText)
+            // Always allow copy of a text summary (image/file -> placeholder).
             {
                 var copy = new MenuFlyoutItem { Text = "复制" };
                 copy.Click += (s, e) =>
                 {
+                    var text = ConversationViewModel.FormatForCopy(m, UtilitySettings.CopyWithSender);
+                    if (string.IsNullOrEmpty(text) && m.IsText) text = m.Text ?? string.Empty;
                     var data = new Windows.ApplicationModel.DataTransfer.DataPackage();
-                    data.SetText(m.Text ?? string.Empty);
+                    data.SetText(text ?? string.Empty);
                     Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
                 };
                 menu.Items.Add(copy);
             }
+
+            var multi = new MenuFlyoutItem { Text = "多选" };
+            multi.Click += (s, e) => EnterMultiSelectMode(m);
+            menu.Items.Add(multi);
 
             // 回复
             var reply = new MenuFlyoutItem { Text = "回复" };
             reply.Click += (s, e) => _vm.ReplyTarget = m;
             menu.Items.Add(reply);
 
-            // 群消息回应（Lagrange SetGroupReaction）
+            // 群消息回应
             if (_vm.IsGroup && _chat is RemoteChatService)
             {
                 var react = new MenuFlyoutSubItem { Text = "回应" };
@@ -1251,17 +1468,22 @@ namespace QQReborn.App.Views
                 menu.Items.Add(react);
             }
 
-            // 转发（服务端 MessageBuilder.MultiMsg）
+            // 转发（NapCat 合并转发）
             var forward = new MenuFlyoutItem { Text = "转发" };
             forward.Click += async (s, e) => await ShowForwardPickerAsync(m);
             menu.Items.Add(forward);
 
-            // 撤回 (outgoing text only). Against a remote backend the actual recall is a
-            // server round-trip (RecallMessageAsync) -- this lambda is itself the top of an
-            // async void call chain (MenuFlyoutItem.Click), so RecallMessageAsync's own
-            // try/catch is what stands between a backend failure and a crashed app; nothing
-            // else guards this call site.
-            if (m.IsOutgoing && m.IsText)
+            // 截图当前消息区域
+            var shot = new MenuFlyoutItem { Text = "截图会话" };
+            shot.Click += async (s, e) =>
+            {
+                MessageList.SelectedItems.Clear();
+                await MultiScreenshot_ClickAsync();
+            };
+            menu.Items.Add(shot);
+
+            // 撤回：所有自己发出的非系统消息
+            if (m.IsOutgoing)
             {
                 var recall = new MenuFlyoutItem { Text = "撤回" };
                 recall.Click += async (s, e) => await _vm.RecallMessageAsync(m);
@@ -1273,6 +1495,43 @@ namespace QQReborn.App.Views
             menu.Items.Add(del);
 
             menu.ShowAt(anchor);
+        }
+
+        private async Task MultiScreenshot_ClickAsync()
+        {
+            try
+            {
+                var rtb = new RenderTargetBitmap();
+                await rtb.RenderAsync(MessageArea);
+                var pixels = await rtb.GetPixelsAsync();
+                if (pixels == null || pixels.Length == 0)
+                {
+                    _vm.AppendSystem("截图失败");
+                    return;
+                }
+                var folder = KnownFolders.PicturesLibrary;
+                var file = await folder.CreateFileAsync(
+                    "QQReborn_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png",
+                    CreationCollisionOption.GenerateUniqueName);
+                using (var stream = await file.OpenAsync(FileAccessMode.ReadWrite))
+                {
+                    var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+                    encoder.SetPixelData(
+                        BitmapPixelFormat.Bgra8,
+                        BitmapAlphaMode.Premultiplied,
+                        (uint)rtb.PixelWidth,
+                        (uint)rtb.PixelHeight,
+                        DisplayInformation.GetForCurrentView().LogicalDpi,
+                        DisplayInformation.GetForCurrentView().LogicalDpi,
+                        pixels.ToArray());
+                    await encoder.FlushAsync();
+                }
+                _vm.AppendSystem("截图已保存到图片库");
+            }
+            catch (Exception ex)
+            {
+                _vm.AppendSystem("截图失败：" + ex.Message);
+            }
         }
 
         // ---- forward: pick a target conversation ----

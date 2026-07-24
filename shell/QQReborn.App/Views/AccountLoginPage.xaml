@@ -13,17 +13,15 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 大标题头部 -->
-        <Grid Grid.Row="0" Margin="24,12,16,8">
+        <!-- WP-style hero title -->
+        <Grid Grid.Row="0" Margin="19,10,12,4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
-                <TextBlock Text="账号" FontSize="13" CharacterSpacing="40"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                <TextBlock Text="登录 QQ" FontSize="36" FontWeight="Light" CharacterSpacing="-20"
-                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                <TextBlock Text="账号" Style="{StaticResource MetroPageTitleStyle}" />
+                <TextBlock Text="连接网关" Style="{StaticResource MetroHeroTitleStyle}" Margin="0,-2,0,0" />
             </StackPanel>
             <Button Grid.Column="1" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
                     BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
@@ -46,7 +44,7 @@
                     <Image Source="{Binding QrImage}" Stretch="Uniform" Margin="12" />
                 </Border>
 
-                <Button Content="开始登录" Click="StartLoginButton_Click"
+                <Button Content="开始连接" Click="StartLoginButton_Click"
                         Visibility="{Binding ShowStartButton, Converter={StaticResource BoolToVisibility}}"
                         Background="{StaticResource MetroAccentBrush}" Foreground="White"
                         Padding="32,12" FontSize="18" HorizontalAlignment="Center" Margin="0,8,0,0" />

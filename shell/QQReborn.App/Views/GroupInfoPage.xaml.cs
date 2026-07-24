@@ -57,8 +57,14 @@ namespace QQReborn.App.Views
 
             try
             {
+                MemberCountText.Text = "加载成员中…";
                 var members = await App.ChatService.GetGroupMembersAsync(conv.Id);
-                _allMembers = members != null ? members.ToList() : new List<GroupMember>();
+                _allMembers = members != null
+                    ? members
+                        .OrderBy(m => m != null && m.IsOwner ? 0 : (m != null && m.Role == "管理员" ? 1 : 2))
+                        .ThenBy(m => m != null ? (m.Name ?? "") : "", StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                    : new List<GroupMember>();
                 _members.Clear();
                 ExpandMembersButton.Visibility = Visibility.Collapsed;
 
@@ -73,11 +79,14 @@ namespace QQReborn.App.Views
                     foreach (var m in _allMembers) _members.Add(m);
                 }
 
-                MemberCountText.Text = "共 " + _allMembers.Count + " 名成员";
+                MemberCountText.Text = _allMembers.Count == 0
+                    ? "暂无成员（请确认 NapCat 在线）"
+                    : "共 " + _allMembers.Count + " 名成员";
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                MemberCountText.Text = "共 0 名成员";
+                MemberCountText.Text = "成员加载失败";
+                System.Diagnostics.Debug.WriteLine("GroupInfo members: " + ex);
             }
         }
 

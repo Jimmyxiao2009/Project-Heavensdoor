@@ -13,17 +13,15 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 大标题头部 -->
-        <Grid Grid.Row="0" Margin="24,12,16,8">
+        <!-- WP-style hero title -->
+        <Grid Grid.Row="0" Margin="19,10,12,4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
-                <TextBlock Text="我" FontSize="13" CharacterSpacing="40"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                <TextBlock Text="设置" FontSize="36" FontWeight="Light" CharacterSpacing="-20"
-                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                <TextBlock Text="我" Style="{StaticResource MetroPageTitleStyle}" />
+                <TextBlock Text="设置" Style="{StaticResource MetroHeroTitleStyle}" Margin="0,-2,0,0" />
             </StackPanel>
             <Button Grid.Column="1" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
                     BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
@@ -33,8 +31,7 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
             <StackPanel Margin="24,8,24,24">
 
-                <TextBlock Text="通用" FontSize="14" CharacterSpacing="40" Margin="0,4,0,8"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                <TextBlock Text="通用" Style="{StaticResource MetroSectionLabelStyle}" Margin="0,4,0,8" />
 
                 <!-- 深色模式 (read-only on) -->
                 <Grid Margin="0,8,0,8">
@@ -115,77 +112,140 @@
 
                 <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,12,0,12" />
 
-                <TextBlock Text="网络" FontSize="14" CharacterSpacing="40" Margin="0,0,0,8"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                <TextBlock Text="实用功能" Style="{StaticResource MetroSectionLabelStyle}" Margin="0,0,0,8" />
 
-                <!-- 服务器地址 (host only; phone must use the PC's LAN IP) -->
-                <StackPanel Margin="0,4,0,8">
-                    <TextBlock Text="服务器地址" FontSize="20" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                    <TextBlock Text="电脑上用 localhost；手机上填电脑的局域网 IP" FontSize="12"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,6" />
-                    <TextBox Text="{Binding ServerHost, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="localhost" InputScope="Url" />
-                </StackPanel>
-
-                <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,12,0,12" />
-
-                <TextBlock Text="账号" FontSize="14" CharacterSpacing="40" Margin="0,0,0,8"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-
-                <!-- 自建签名服务器开关 -->
-                <Grid Margin="0,4,0,8">
+                <Grid Margin="0,8,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="使用自建签名服务器" FontSize="20" FontWeight="Light"
+                        <TextBlock Text="防撤回" FontSize="20" FontWeight="Light"
                                    Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="关闭 = 用 Lagrange 官方签名服务（需要自己申请的 API key）；开启 = 填你自己的签名服务器地址"
-                                   FontSize="12" TextWrapping="Wrap"
+                        <TextBlock Text="对方撤回后本地仍可见原文" FontSize="12" TextWrapping="Wrap"
                                    Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
                     </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding UseSelfHostedSignServer, Mode=TwoWay}"
+                    <ToggleSwitch Grid.Column="1" IsOn="{Binding AntiRecall, Mode=TwoWay}"
                                   VerticalAlignment="Center" />
                 </Grid>
 
-                <!-- 自建服务器地址 (only when self-hosted) -->
-                <StackPanel Margin="0,4,0,8" Visibility="{Binding UseSelfHostedSignServer, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Text="签名服务器地址" FontSize="20" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                    <TextBox Text="{Binding SignServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="https://your-sign-server.example.com" InputScope="Url" Margin="0,6,0,0" />
-                </StackPanel>
+                <Grid Margin="0,8,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="显示撤回提示" FontSize="20" FontWeight="Light"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="有人撤回时在会话里插一条提示" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsOn="{Binding ShowRevokeNotice, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                </Grid>
 
-                <!-- 官方服务提示 (only when official) -->
-                <TextBlock Text="官方服务地址：sign.lagrangecore.org（固定，无需填写）" FontSize="12"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,0,0,8"
-                           Visibility="{Binding ShowOfficialSignFields, Converter={StaticResource BoolToVisibility}}" />
+                <Grid Margin="0,8,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="双击戳一戳" FontSize="20" FontWeight="Light"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="双击对方气泡发送戳一戳" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsOn="{Binding DoubleTapNudge, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                </Grid>
 
-                <!-- API key / Bearer token -->
+                <Grid Margin="0,8,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="发送前确认" FontSize="20" FontWeight="Light"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="点发送时再确认一次，防误触" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsOn="{Binding ConfirmBeforeSend, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                </Grid>
+
+                <Grid Margin="0,8,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="复制带发送者" FontSize="20" FontWeight="Light"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="多选复制时每行前加昵称" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsOn="{Binding CopyWithSender, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                </Grid>
+
+                <Grid Margin="0,8,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="来消息震动" FontSize="20" FontWeight="Light"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="新消息时手机震动（需开启消息通知）" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" IsOn="{Binding VibrateOnMessage, Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                </Grid>
+
+                <TextBlock Text="聊天里：长按消息 → 多选 / 复制 / 转发 / 截图选中"
+                           FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4"
+                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+
+                <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,12,0,12" />
+
+                <TextBlock Text="网关连接" Style="{StaticResource MetroSectionLabelStyle}" Margin="0,0,0,8" />
+
                 <StackPanel Margin="0,4,0,8">
-                    <TextBlock Text="API Key" FontSize="20" FontWeight="Light"
+                    <TextBlock Text="服务器地址" FontSize="20" FontWeight="Light"
                                Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                    <TextBlock Text="官方服务：#signer register/verify/bind 拿到的 token；自建服务器：视你自己实现而定，可留空"
+                    <TextBlock Text="本机 localhost；同 WiFi 填电脑局域网 IP；出门填樱花 Frp 访问主机"
                                FontSize="12" TextWrapping="Wrap"
                                Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,6" />
-                    <PasswordBox x:Name="SignTokenBox" PasswordChanged="SignTokenBox_PasswordChanged" PlaceholderText="Bearer token" />
+                    <TextBox Text="{Binding ServerHost, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             PlaceholderText="localhost" InputScope="Url" />
                 </StackPanel>
-
-                <!-- QQ号 -->
                 <StackPanel Margin="0,4,0,8">
-                    <TextBlock Text="QQ 号" FontSize="20" FontWeight="Light"
+                    <TextBlock Text="服务器端口" FontSize="20" FontWeight="Light"
                                Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                    <TextBlock Text="要登录的 QQ 号（需已在签名服务上绑定）" FontSize="12"
+                    <TextBlock Text="默认 8765；若樱花远程端口不是 8765，改成面板上的远程端口"
+                               FontSize="12" TextWrapping="Wrap"
                                Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,6" />
-                    <TextBox Text="{Binding SignUin, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="10000" InputScope="Number" />
+                    <TextBox Text="{Binding ServerPortText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             PlaceholderText="8765" InputScope="Number" />
+                </StackPanel>
+                <StackPanel Margin="0,4,0,8">
+                    <TextBlock Text="网关访问密码" FontSize="20" FontWeight="Light"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <TextBlock Text="这是电脑管家的访问口令，不是 QQ 密码；与管家设置一致后才能连接"
+                               FontSize="12" TextWrapping="Wrap"
+                               Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,6" />
+                    <PasswordBox x:Name="AccessPasswordBox" PasswordChanged="AccessPasswordBox_PasswordChanged"
+                                 PlaceholderText="填写管家显示的访问密码" />
                 </StackPanel>
 
-                <Button Content="登录 QQ" Click="LoginButton_Click"
+                <Button Content="连接网关" Click="LoginButton_Click"
                         Background="{StaticResource MetroAccentBrush}" Foreground="White"
                         Padding="18,8" Margin="0,4,0,8" />
+                <TextBlock Text="号在电脑上的 NapCat/NTQQ 已登录；此处只需地址、端口、密码即可进会话。"
+                           FontSize="12" TextWrapping="Wrap"
+                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,0,0,8" />
 
                 <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,12,0,12" />
 

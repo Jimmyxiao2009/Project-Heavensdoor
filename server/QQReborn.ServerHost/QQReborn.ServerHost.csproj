@@ -10,7 +10,7 @@
     <AssemblyName>QQReborn.ServerHost</AssemblyName>
     <ApplicationIcon />
     <Product>QQ Reborn Server Host</Product>
-    <Description>Control panel to start RealServer + LocalSignProxy</Description>
+    <Description>QQ Reborn steward — start NapCat local gateway (RealServer)</Description>
   </PropertyGroup>
 
 </Project>

@@ -73,14 +73,30 @@ namespace QQReborn.App.Views
                 var accepted = await _remote.ConfigureAccountAsync(_vm.SignServerUrl, _vm.SignToken, _vm.SignUin);
                 if (!accepted)
                 {
-                    _vm.StatusText = "启动登录失败";
-                    _vm.StatusDetailText = "服务器拒绝了请求（可能已经在线，或者已有一次登录正在进行）";
+                    _vm.StatusText = "连接网关失败";
+                    _vm.StatusDetailText = "请确认电脑管家已启动、访问密码正确，且 NapCat/NTQQ 已登录。";
+                }
+                else
+                {
+                    _vm.StatusText = "已连接";
+                    _vm.StatusDetailText = "本机网关已绑定 NapCat 当前登录号，可返回会话列表收发消息。";
+                    _vm.ShowStartButton = false;
                 }
             }
             catch (Exception ex)
             {
-                _vm.StatusText = "连接失败";
-                _vm.StatusDetailText = ex.Message;
+                var msg = ex.Message ?? "";
+                if (msg.IndexOf("访问密码", StringComparison.Ordinal) >= 0
+                    || msg.IndexOf("auth", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    _vm.StatusText = "访问密码错误";
+                    _vm.StatusDetailText = "请到设置中填写与电脑管家一致的访问密码后重试。";
+                }
+                else
+                {
+                    _vm.StatusText = "连接失败";
+                    _vm.StatusDetailText = msg;
+                }
             }
             finally
             {
