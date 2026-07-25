@@ -12,6 +12,9 @@ namespace QQReborn.App.Services
     {
         Task<IReadOnlyList<Moment>> GetFeedAsync();
 
+        /// <summary>Force network refresh of the feed (not cache-only).</summary>
+        Task<IReadOnlyList<Moment>> RefreshFeedAsync();
+
         /// <summary>Toggle the like state of a moment and adjust its count.</summary>
         Task ToggleLikeAsync(Moment m);
 

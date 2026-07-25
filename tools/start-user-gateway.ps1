@@ -1,7 +1,7 @@
 # QQ Reborn — 本机 NapCat 网关（MC 开服式）
 # 1) 本机已登录 NTQQ + NapCat
 # 2) 运行本脚本启动 RealServer (backend=napcat) 监听 :8765
-# 3) 出门：用 SakuraFrp 映射 127.0.0.1:8765（见 docs/USER-GATEWAY-SAKURAFRP.md）
+# 3) 出门：用 OpenFrp/Frp 映射 127.0.0.1:8765（见 docs/USER-GATEWAY-OPENFRP.md）
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File tools\start-user-gateway.ps1
@@ -32,7 +32,7 @@ Write-Host "========== QQ Reborn 本机网关 =========="
 Write-Host "  模式     : localGateway + napcat"
 Write-Host "  NapCat   : $NapCatHttp"
 Write-Host "  Wire     : ws://127.0.0.1:$Port/ws"
-Write-Host "  出门     : SakuraFrp 映射 127.0.0.1:$Port"
+Write-Host "  出门     : OpenFrp/Frp 映射 127.0.0.1:$Port"
 Write-Host "  文档     : docs/USER-GATEWAY-SAKURAFRP.md"
 Write-Host "========================================"
 Write-Host ""
@@ -76,7 +76,7 @@ try {
 Write-Host ""
 Write-Host "Starting gateway. Keep this window open (like a Minecraft server console)."
 Write-Host "  在家 Shell 服务器填: 127.0.0.1"
-Write-Host "  出门 Shell 服务器填: 樱花面板的访问主机"
+Write-Host "  出门 Shell 服务器填: OpenFrp 面板的访问主机"
 Write-Host "  只穿透端口 $Port ，不要穿透 NapCat 3000/3001"
 Write-Host ""
 

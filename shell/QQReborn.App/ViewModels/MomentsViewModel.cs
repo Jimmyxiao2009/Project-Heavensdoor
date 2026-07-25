@@ -66,7 +66,7 @@ namespace QQReborn.App.ViewModels
 
             try
             {
-                var feed = await _moments.GetFeedAsync();
+                var feed = await _moments.RefreshFeedAsync();
                 MergeFeed(feed);
                 RaisePropertyChanged(nameof(IsEmptyFeed));
             }

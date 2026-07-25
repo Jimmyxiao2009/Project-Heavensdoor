@@ -51,7 +51,7 @@ public interface ISessionBackend
 
     Task<(JsonObject? data, string? error)> ForwardAsync(string conversationId, string messageId);
     JsonObject SetConversationFlags(string conversationId, bool? isPinned, bool? isMuted);
-    JsonObject MarkConversationRead(string conversationId);
+    JsonObject MarkConversationRead(string conversationId, string? lastReadAt = null);
     Task<(JsonObject? data, string? error)> GroupRenameAsync(string conversationId, string newName);
     Task<(JsonObject? data, string? error)> GroupMemberRenameAsync(string conversationId, long targetUin, string newName);
     Task<(JsonObject? data, string? error)> GroupSetSpecialTitleAsync(string conversationId, long targetUin, string title);

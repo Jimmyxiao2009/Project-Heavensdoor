@@ -19,7 +19,10 @@ namespace QQReborn.App.Services
         }
 
         public Task<IReadOnlyList<Moment>> GetFeedAsync()
-            => _remote.GetSpaceFeedAsync();
+            => _remote.GetSpaceFeedAsync(forceRefresh: false);
+
+        public Task<IReadOnlyList<Moment>> RefreshFeedAsync()
+            => _remote.GetSpaceFeedAsync(forceRefresh: true);
 
         public async Task ToggleLikeAsync(Moment m)
         {

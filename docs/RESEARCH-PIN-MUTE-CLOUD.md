@@ -198,3 +198,18 @@ READ_FLAGS  =
 - **Do not** claim cloud sync in UI until §7 confirmed.  
 - **Do** keep local prefs as source of truth for QQ-Reborn multi-device.  
 - If capture fails for >1 serious attempt, fall back to Plan A (RealServer-only realtime push) without pretending cloud works.
+
+## 9. Gateway multi-client sync (implemented 2026-07-25)
+
+While official NTQQ cloud write is still blocked (no NapCat pin/mute API; `get_recent_contact` strips flags),
+RealServer now broadcasts:
+
+```json
+{ "type": "conversationFlagsChanged", "data": { "conversationId": "f123", "isPinned": true, "isMuted": false } }
+```
+
+after every successful `setConversationFlags`. All Shells on the same gateway update list order,
+mute badges, and `NotificationMuteGate` immediately. Local `conv_prefs_napcat_{uin}.json` remains
+the source of truth for QQ-Reborn devices.
+
+Official desktop/phone QQ still will **not** change until §7 capture lands a write path.

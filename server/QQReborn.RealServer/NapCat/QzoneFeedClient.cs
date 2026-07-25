@@ -63,8 +63,11 @@ public sealed class QzoneFeedClient
         http.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "https://h5.qzone.qq.com");
 
         // Prefer active friend feeds (rich vFeeds); fall back to mobile get_feeds.
+        // QZone H5 active feeds uses attach_info (underscore). attachinfo returns the same first page.
         var urls = new List<string>
         {
+            $"https://h5.qzone.qq.com/webapp/json/mqzone_feeds/getActiveFeeds?g_tk={gtk}&format=json"
+                + (string.IsNullOrEmpty(attach) ? "" : $"&attach_info={Uri.EscapeDataString(attach)}"),
             $"https://h5.qzone.qq.com/webapp/json/mqzone_feeds/getActiveFeeds?g_tk={gtk}&format=json"
                 + (string.IsNullOrEmpty(attach) ? "" : $"&attachinfo={Uri.EscapeDataString(attach)}"),
             $"https://mobile.qzone.qq.com/get_feeds?res_type=2&res_attach={Uri.EscapeDataString(attach)}&refresh_type=2&format=json&g_tk={gtk}",
@@ -146,6 +149,11 @@ public sealed class QzoneFeedClient
             _moments.Sort((a, b) => string.Compare(ReadStr(b["time"]), ReadStr(a["time"]), StringComparison.Ordinal));
         }
 
+        if (earlier && added == 0 && _moments.Count > 0)
+        {
+            // Same page / no new items — stop infinite "加载更多".
+            _hasMore = false;
+        }
         Console.WriteLine($"[Qzone] mapped added={added} total={_moments.Count} hasMore={_hasMore}");
         return (added, _hasMore);
     }
@@ -189,7 +197,7 @@ public sealed class QzoneFeedClient
             using var resp = await http.PostAsync(url, content);
             var text = await resp.Content.ReadAsStringAsync();
             Console.WriteLine($"[Qzone] like HTTP {(int)resp.StatusCode} {text[..Math.Min(120, text.Length)]}");
-            var ok = text.Contains("\"code\":0") || text.Contains("\"ret\":0") || resp.IsSuccessStatusCode;
+            var ok = text.Contains("\"code\":0") || text.Contains("\"ret\":0") || text.Contains("\"code\": 0") || text.Contains("\"ret\": 0");
             if (ok)
             {
                 lock (_gate)

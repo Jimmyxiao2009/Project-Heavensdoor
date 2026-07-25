@@ -19,7 +19,15 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
     private readonly Dictionary<string, List<JsonObject>> _messages = new();
     private readonly List<JsonObject> _conversations = new();
     private readonly List<JsonObject> _contacts = new();
-    private readonly Dictionary<string, (bool pinned, bool muted)> _convPrefs = new();
+    private sealed class ConvPref
+    {
+        public bool Pinned;
+        public bool Muted;
+        public string? LastReadAt;
+        public int Unread;
+    }
+
+    private readonly Dictionary<string, ConvPref> _convPrefs = new();
     private readonly ConcurrentDictionary<string, JsonObject> _msgIndex = new();
 
     private long _selfUin;
@@ -28,6 +36,8 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
     private CancellationTokenSource? _wsCts;
     private Task? _wsLoop;
     private long _prefsUin;
+    private int _lastHistoryPageCount;
+    private int _lastHistoryAdded;
 
     // Pending system requests (flag required by NapCat set_*_add_request).
     private readonly List<JsonObject> _friendRequests = new();
@@ -120,7 +130,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 ["mode"] = "localGateway",
                 ["uin"] = uin,
                 ["nickname"] = nick,
-                ["hint"] = "本机网关：出门请用 SakuraFrp 映射 8765，见 docs/USER-GATEWAY-SAKURAFRP.md",
+                ["hint"] = "本机网关：出门请用 OpenFrp/Frp 映射 8765，见 docs/USER-GATEWAY-OPENFRP.md",
             }, null);
         }
         catch (Exception ex)
@@ -288,7 +298,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
     }
 
-    private JsonObject? MapIncomingMessage(JsonObject ev, bool isSentEcho)
+    private JsonObject? MapIncomingMessage(JsonObject ev, bool isSentEcho, long? forcedPrivatePeer = null)
     {
         var messageType = NapCatApiClient.ReadStr(ev["message_type"]);
         var messageId = NapCatApiClient.ReadLong(ev["message_id"]);
@@ -306,14 +316,24 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
         else
         {
-            // private: peer is user_id (for self-echo of outbound, still the peer)
-            var peer = userId;
-            if (isSentEcho && peer == _selfUin)
+            // private: peer is the other party.
+            // Live self-echo: user_id may be self, target_id holds peer.
+            // History self-sent rows often lack target_id — pass forcedPrivatePeer.
+            long peer;
+            if (forcedPrivatePeer is > 0)
             {
-                // some stacks put target in target_id
-                peer = NapCatApiClient.ReadLong(ev["target_id"]);
-                if (peer <= 0) peer = userId;
+                peer = forcedPrivatePeer.Value;
             }
+            else
+            {
+                peer = userId;
+                if ((isSentEcho || peer == _selfUin) && peer == _selfUin)
+                {
+                    peer = NapCatApiClient.ReadLong(ev["target_id"]);
+                    if (peer <= 0) peer = userId;
+                }
+            }
+            if (peer <= 0) return null;
             convId = "f" + peer;
             kind = "Friend";
         }
@@ -358,6 +378,11 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             ["state"] = "Sent",
             ["napcatMessageId"] = messageId,
         };
+        // Prefer group_name from the event when present; else conversation row title.
+        var preferredTitle = messageType == "group"
+            ? NapCatApiClient.ReadStr(ev["group_name"])
+            : senderName;
+        EnrichConversationMeta(wire, convId, preferredTitle);
         return wire;
     }
 
@@ -557,15 +582,42 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
 
         Console.WriteLine($"[NapCat] populated contacts={_contacts.Count} conversations={_conversations.Count}");
+    
+        try
+        {
+            var (recentData, rErr) = await _api.CallAsync("get_recent_contact", new JsonObject { ["count"] = 50 });
+            if (rErr != null) Console.WriteLine("[NapCat] get_recent_contact: " + rErr);
+            else ApplyRecentContacts(recentData);
+        }
+        catch (Exception ex) { Console.WriteLine("[NapCat] recent hydrate: " + ex.Message); }
+
     }
 
     private void EnsureConversationRow(string convId, string kind, string? title)
     {
         lock (_gate)
         {
-            if (_conversations.Any(c => (string?)c["id"] == convId)) return;
             long uin = 0;
             if (convId.Length > 1) long.TryParse(convId.AsSpan(1), out uin);
+
+            var existing = _conversations.FirstOrDefault(c => (string?)c["id"] == convId);
+            if (existing != null)
+            {
+                // Upgrade placeholder titles (convId / bare uin) when NapCat later
+                // supplies a real group_name or peer nickname.
+                if (!string.IsNullOrWhiteSpace(title))
+                {
+                    var cur = (string?)existing["title"] ?? "";
+                    if (string.IsNullOrWhiteSpace(cur)
+                        || cur == convId
+                        || (uin > 0 && cur == uin.ToString()))
+                        existing["title"] = title.Trim();
+                }
+                if (string.IsNullOrWhiteSpace((string?)existing["avatarPath"]) && uin > 0)
+                    existing["avatarPath"] = kind == "Group" ? GroupAvatarUrl(uin) : FriendAvatarUrl(uin);
+                return;
+            }
+
             var row = new JsonObject
             {
                 ["id"] = convId,
@@ -589,11 +641,17 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             if (conv == null) return;
             if (!string.IsNullOrEmpty(preview)) conv["preview"] = preview;
             conv["lastTime"] = DateTimeOffset.UtcNow.ToString("o");
-            var muted = _convPrefs.TryGetValue(convId, out var p) && p.muted;
-            if (incrementUnread && !muted)
+            if (!_convPrefs.TryGetValue(convId, out var pref) || pref == null)
             {
-                var u = NapCatApiClient.ReadLong(conv["unread"]);
-                conv["unread"] = u + 1;
+                pref = new ConvPref();
+                _convPrefs[convId] = pref;
+            }
+            if (incrementUnread && !pref.Muted)
+            {
+                var u = (int)NapCatApiClient.ReadLong(conv["unread"]) + 1;
+                conv["unread"] = u;
+                pref.Unread = u;
+                SavePrefs();
             }
         }
     }
@@ -685,30 +743,37 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         if (!TryParseConv(conversationId, out var kind, out var peer)) return;
         count = count <= 0 ? 20 : Math.Min(count, 50);
 
-        // NapCat extensions (names vary slightly across versions)
-        string action;
+        // NapCat: get_*_msg_history returns a window of messages.
+        // To page OLDER than an anchor, pass reverseOrder=true and message_seq=anchor message_id
+        // (NapCat sets message_seq == message_id; real_seq is the dense chat sequence).
         var parameters = new JsonObject { ["count"] = count };
+        string action;
         if (kind == 'g')
         {
             action = "get_group_msg_history";
             parameters["group_id"] = peer;
-            if (!string.IsNullOrEmpty(beforeId) && beforeId.Contains(':')
-                && long.TryParse(beforeId.Split(':').Last(), out var mid))
-                parameters["message_seq"] = mid; // some builds use message_id / message_seq
         }
         else
         {
             action = "get_friend_msg_history";
             parameters["user_id"] = peer;
-            // alternate action names tried on failure
+        }
+
+        if (!string.IsNullOrEmpty(beforeId))
+        {
+            var anchorNapCatId = ExtractNapCatMessageId(beforeId);
+            if (anchorNapCatId > 0)
+            {
+                parameters["message_seq"] = anchorNapCatId;
+                parameters["reverseOrder"] = true;
+            }
         }
 
         var (data, err) = await _api.CallAsync(action, parameters);
         if (err != null && kind == 'f')
         {
-            (data, err) = await _api.CallAsync("get_friend_msg_history", parameters);
-            if (err != null)
-                (data, err) = await _api.CallAsync("get_msg_history", parameters);
+            // Some builds only expose the generic name.
+            (data, err) = await _api.CallAsync("get_msg_history", parameters);
         }
         if (err != null)
         {
@@ -719,17 +784,31 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         var messages = data as JsonArray
             ?? data?["messages"] as JsonArray
             ?? data?["message"] as JsonArray;
-        if (messages == null) return;
+        if (messages == null || messages.Count == 0)
+        {
+            _lastHistoryPageCount = 0;
+            _lastHistoryAdded = 0;
+            Console.WriteLine($"[NapCat] history {action}: empty page beforeId={beforeId}");
+            return;
+        }
+        _lastHistoryPageCount = messages.Count;
+        _lastHistoryAdded = 0;
 
+        var added = 0;
         foreach (var n in messages)
         {
             if (n is not JsonObject o) continue;
-            // Normalize to event-like object
             if (o["message_type"] == null)
                 o["message_type"] = kind == 'g' ? "group" : "private";
             if (kind == 'g' && o["group_id"] == null) o["group_id"] = peer;
             if (kind == 'f' && o["user_id"] == null) o["user_id"] = peer;
-            var wire = MapIncomingMessage(o, false);
+            // History rows: private self-sent messages have user_id=self. Force the
+            // conversation peer so id becomes f{peer}:{mid}, not f{self}:{mid}.
+            var senderUin = NapCatApiClient.ReadLong((o["sender"] as JsonObject)?["user_id"]);
+            if (senderUin <= 0) senderUin = NapCatApiClient.ReadLong(o["user_id"]);
+            var isSelf = _selfUin > 0 && senderUin == _selfUin;
+            long? forcedPeer = kind == 'f' ? peer : null;
+            var wire = MapIncomingMessage(o, isSentEcho: isSelf, forcedPrivatePeer: forcedPeer);
             if (wire == null) continue;
             lock (_gate)
             {
@@ -740,21 +819,23 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 }
                 var id = (string)wire["id"]!;
                 if (list.Any(m => (string?)m["id"] == id)) continue;
-                list.Insert(0, wire); // history usually oldest-first or newest — keep insertion then sort
+                list.Add(wire);
                 _msgIndex[id] = wire;
+                added++;
             }
+            _lastHistoryAdded = added;
         }
 
         lock (_gate)
         {
             if (_messages.TryGetValue(conversationId, out var list))
             {
-                var ordered = list
-                    .OrderBy(m => (string?)m["time"] ?? "")
+                _messages[conversationId] = list
+                    .OrderBy(m => (string?)m["time"] ?? "", StringComparer.Ordinal)
                     .ToList();
-                _messages[conversationId] = ordered;
             }
         }
+        Console.WriteLine($"[NapCat] history {action}: merged +{added}/{messages.Count} beforeId={beforeId}");
     }
 
     public async Task<JsonArray> GetGroupMembersAsync(string conversationId)
@@ -929,46 +1010,59 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
 
     public async Task<(JsonObject? data, string? error)> GetEarlierMessagesAsync(string conversationId, string? beforeId, int count)
     {
-        await TryPullHistoryAsync(conversationId, count > 0 ? count : 20, beforeId);
+        count = count > 0 ? Math.Min(count, 50) : 20;
+        // Always ask NapCat for a page. reverseOrder+message_seq is applied when beforeId set.
+        await TryPullHistoryAsync(conversationId, count, beforeId);
+
         JsonArray messages;
         lock (_gate)
         {
             messages = new JsonArray();
-            if (_messages.TryGetValue(conversationId, out var list))
+            if (_messages.TryGetValue(conversationId, out var list) && list.Count > 0)
             {
-                IEnumerable<JsonObject> q = list;
+                IEnumerable<JsonObject> older = list;
                 if (!string.IsNullOrEmpty(beforeId))
                 {
                     var idx = list.FindIndex(m => (string?)m["id"] == beforeId);
-                    if (idx > 0) q = list.Take(idx);
-                    else if (idx == 0) q = Array.Empty<JsonObject>();
+                    if (idx > 0)
+                        older = list.Take(idx); // strictly older than anchor
+                    else if (idx == 0)
+                        older = Array.Empty<JsonObject>(); // anchor is oldest we have after pull
+                    else
+                    {
+                        // Anchor not in cache — return the oldest page we hold.
+                        older = list;
+                    }
                 }
-                var take = count > 0 ? count : 20;
-                foreach (var m in q.Reverse().Take(take).Reverse())
+                // Closest older page to the anchor (or newest page if no anchor).
+                foreach (var m in older.Reverse().Take(count).Reverse())
                     messages.Add(Clone(m));
             }
         }
-        var hasMore = messages.Count >= (count > 0 ? count : 20);
+
+        // Stop when NapCat page empty/short, or full page produced only duplicates.
+        var hasMore = _lastHistoryPageCount >= count && (_lastHistoryAdded > 0 || string.IsNullOrEmpty(beforeId));
+        if (messages.Count == 0) hasMore = false;
         return (new JsonObject { ["messages"] = messages, ["hasMore"] = hasMore }, null);
     }
 
     public async Task<JsonObject> RecallMessageAsync(string conversationId, string messageId)
     {
         var mid = ExtractNapCatMessageId(messageId);
-        if (mid <= 0) return new JsonObject { ["ok"] = false, ["reason"] = "invalid-message-id" };
+        if (mid <= 0) return new JsonObject { ["ok"] = false, ["recalled"] = false, ["reason"] = "invalid-message-id" };
         var (data, err) = await _api.CallAsync("delete_msg", new JsonObject { ["message_id"] = mid });
-        if (err != null) return new JsonObject { ["ok"] = false, ["reason"] = err };
-        return new JsonObject { ["ok"] = true, ["data"] = data?.DeepClone() };
+        if (err != null) return new JsonObject { ["ok"] = false, ["recalled"] = false, ["reason"] = err };
+        return new JsonObject { ["ok"] = true, ["recalled"] = true, ["data"] = data?.DeepClone() };
     }
 
     public async Task<JsonObject> QuitGroupAsync(string conversationId)
     {
         if (!TryParseConv(conversationId, out var kind, out var peer) || kind != 'g')
-            return new JsonObject { ["ok"] = false, ["reason"] = "not-a-group" };
+            return new JsonObject { ["ok"] = false, ["left"] = false, ["reason"] = "not-a-group" };
         var (_, err) = await _api.CallAsync("set_group_leave", new JsonObject { ["group_id"] = peer });
-        if (err != null) return new JsonObject { ["ok"] = false, ["reason"] = err };
+        if (err != null) return new JsonObject { ["ok"] = false, ["left"] = false, ["reason"] = err };
         lock (_gate) _conversations.RemoveAll(c => (string?)c["id"] == conversationId);
-        return new JsonObject { ["ok"] = true };
+        return new JsonObject { ["ok"] = true, ["left"] = true };
     }
 
     public async Task<(JsonObject? data, string? error)> SendNudgeAsync(string conversationId, long targetUin)
@@ -1268,7 +1362,23 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
     {
         if (_qzone == null)
             return new JsonObject { ["moments"] = new JsonArray(), ["hasMore"] = false, ["backend"] = BackendId };
-        return _qzone.Snapshot();
+
+        // First open of 动态 often races the fire-and-forget login refresh. If still empty,
+        // block once so the Shell button is not a permanent blank page.
+        var snap = _qzone.Snapshot();
+        if (snap["moments"] is JsonArray ma && ma.Count == 0)
+        {
+            try
+            {
+                _qzone.RefreshAsync(earlier: false).GetAwaiter().GetResult();
+                snap = _qzone.Snapshot();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[Qzone] GetSpaceFeed refresh: " + ex.Message);
+            }
+        }
+        return snap;
     }
 
     public JsonObject SetSpaceLike(string momentId, bool isLiked)
@@ -1479,6 +1589,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 ["state"] = "Sent",
                 ["napcatMessageId"] = messageId,
             };
+            EnrichConversationMeta(wire, conversationId);
 
             lock (_gate)
             {
@@ -1681,6 +1792,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             ["napcatMessageId"] = messageId,
         };
         if (!string.IsNullOrEmpty(fileId)) wire["fileId"] = fileId;
+        EnrichConversationMeta(wire, conversationId);
         lock (_gate)
         {
             if (!_messages.TryGetValue(conversationId, out var list))
@@ -1932,12 +2044,16 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         if (isPinned == null && isMuted == null)
             return new JsonObject { ["ok"] = false, ["reason"] = "no-flags" };
 
+        JsonObject result;
         lock (_gate)
         {
-            _convPrefs.TryGetValue(conversationId, out var prev);
-            var pinned = isPinned ?? prev.pinned;
-            var muted = isMuted ?? prev.muted;
-            _convPrefs[conversationId] = (pinned, muted);
+            if (!_convPrefs.TryGetValue(conversationId, out var prev) || prev == null)
+                prev = new ConvPref();
+            var pinned = isPinned ?? prev.Pinned;
+            var muted = isMuted ?? prev.Muted;
+            prev.Pinned = pinned;
+            prev.Muted = muted;
+            _convPrefs[conversationId] = prev;
             var conv = _conversations.FirstOrDefault(c => (string?)c["id"] == conversationId);
             if (conv != null)
             {
@@ -1946,7 +2062,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 if (muted) conv["unread"] = 0;
             }
             SavePrefs();
-            return new JsonObject
+            result = new JsonObject
             {
                 ["ok"] = true,
                 ["conversationId"] = conversationId,
@@ -1954,16 +2070,76 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 ["isMuted"] = muted,
             };
         }
+
+        // Push to every connected Shell so pin/mute stays in sync across devices
+        // that share this gateway (local authority). Official NTQQ cloud write is
+        // not available via current NapCat APIs.
+        Broadcast?.Invoke(new JsonObject
+        {
+            ["type"] = "conversationFlagsChanged",
+            ["data"] = new JsonObject
+            {
+                ["conversationId"] = conversationId,
+                ["isPinned"] = result["isPinned"]!.GetValue<bool>(),
+                ["isMuted"] = result["isMuted"]!.GetValue<bool>(),
+            },
+        }.ToJsonString());
+
+        return result;
     }
 
-    public JsonObject MarkConversationRead(string conversationId)
+    public JsonObject MarkConversationRead(string conversationId, string? lastReadAt = null)
     {
+        string readAt;
+        if (!string.IsNullOrWhiteSpace(lastReadAt)
+            && DateTimeOffset.TryParse(lastReadAt, out var parsed))
+            readAt = parsed.ToUniversalTime().ToString("o");
+        else
+            readAt = DateTimeOffset.UtcNow.ToString("o");
+
+        JsonObject result;
         lock (_gate)
         {
+            if (!_convPrefs.TryGetValue(conversationId, out var pref) || pref == null)
+                pref = new ConvPref();
+            if (!string.IsNullOrEmpty(pref.LastReadAt)
+                && DateTimeOffset.TryParse(pref.LastReadAt, out var prevAt)
+                && DateTimeOffset.TryParse(readAt, out var nextAt)
+                && nextAt < prevAt)
+            {
+                readAt = pref.LastReadAt;
+            }
+            pref.LastReadAt = readAt;
+            pref.Unread = 0;
+            _convPrefs[conversationId] = pref;
+
             var conv = _conversations.FirstOrDefault(c => (string?)c["id"] == conversationId);
-            if (conv != null) conv["unread"] = 0;
+            if (conv != null)
+            {
+                conv["unread"] = 0;
+                conv["lastReadAt"] = readAt;
+            }
+            SavePrefs();
+            result = new JsonObject
+            {
+                ["ok"] = true,
+                ["conversationId"] = conversationId,
+                ["lastReadAt"] = readAt,
+                ["unread"] = 0,
+            };
         }
-        // Best-effort NapCat cloud read marker (do not block UI).
+
+        Broadcast?.Invoke(new JsonObject
+        {
+            ["type"] = "conversationRead",
+            ["data"] = new JsonObject
+            {
+                ["conversationId"] = conversationId,
+                ["lastReadAt"] = readAt,
+                ["unread"] = 0,
+            },
+        }.ToJsonString());
+
         if (TryParseConv(conversationId, out var kind, out var peer))
         {
             _ = Task.Run(async () =>
@@ -1978,7 +2154,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 catch (Exception ex) { Console.WriteLine("[NapCat] mark read: " + ex.Message); }
             });
         }
-        return new JsonObject { ["ok"] = true };
+        return result;
     }
 
     public async Task<(JsonObject? data, string? error)> GroupRenameAsync(string conversationId, string newName)
@@ -2055,6 +2231,115 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         return parts.Length >= 2 && long.TryParse(parts[^1], out var mid) ? mid : 0;
     }
 
+
+    /// <summary>
+    /// Fill conversationTitle / conversationAvatarPath so Shell toasts can show the
+    /// group (or friend) identity instead of only the individual sender.
+    /// </summary>
+
+    private void ApplyRecentContacts(JsonNode? recentData)
+    {
+        JsonArray? arr = recentData as JsonArray
+            ?? recentData?["data"] as JsonArray
+            ?? recentData?["list"] as JsonArray;
+        if (arr == null) return;
+        lock (_gate)
+        {
+            foreach (var n in arr)
+            {
+                if (n is not JsonObject o) continue;
+                var peerUin = NapCatApiClient.ReadLong(o["peerUin"] ?? o["user_id"] ?? o["group_id"] ?? o["uin"]);
+                if (peerUin <= 0) continue;
+                var chatType = (int)NapCatApiClient.ReadLong(o["chatType"] ?? o["chat_type"]);
+                var isGroup = chatType == 2 || chatType == 3;
+                var convId = (isGroup ? "g" : "f") + peerUin;
+                var conv = _conversations.FirstOrDefault(c => (string?)c["id"] == convId);
+                if (conv == null)
+                {
+                    var title = NapCatApiClient.ReadStr(o["peerName"] ?? o["remark"] ?? o["nickname"]) ?? peerUin.ToString();
+                    conv = new JsonObject
+                    {
+                        ["id"] = convId,
+                        ["kind"] = isGroup ? "Group" : "Friend",
+                        ["title"] = title,
+                        ["avatarPath"] = isGroup ? GroupAvatarUrl(peerUin) : FriendAvatarUrl(peerUin),
+                        ["preview"] = "",
+                        ["lastTime"] = DateTimeOffset.UtcNow.ToString("o"),
+                        ["unread"] = 0,
+                    };
+                    ApplyPrefsTo(conv);
+                    _conversations.Add(conv);
+                }
+                var peerName = NapCatApiClient.ReadStr(o["peerName"] ?? o["remark"]);
+                if (!string.IsNullOrWhiteSpace(peerName))
+                {
+                    var cur = (string?)conv["title"] ?? "";
+                    if (string.IsNullOrWhiteSpace(cur) || cur == convId || cur == peerUin.ToString())
+                        conv["title"] = peerName;
+                }
+                var msgTime = NapCatApiClient.ReadLong(o["msgTime"] ?? o["time"]);
+                if (msgTime > 0)
+                {
+                    try
+                    {
+                        var dto = msgTime > 3_000_000_000
+                            ? DateTimeOffset.FromUnixTimeMilliseconds(msgTime)
+                            : DateTimeOffset.FromUnixTimeSeconds(msgTime);
+                        conv["lastTime"] = dto.ToString("o");
+                    }
+                    catch { }
+                }
+                if (o["lastestMsg"] is JsonObject lm)
+                {
+                    var raw = NapCatApiClient.ReadStr(lm["raw_message"] ?? lm["message"] ?? lm["text"]);
+                    if (!string.IsNullOrEmpty(raw))
+                        conv["preview"] = raw.Length > 80 ? raw[..80] : raw;
+                }
+                if (o.ContainsKey("unreadCnt") || o.ContainsKey("unread") || o.ContainsKey("unread_count"))
+                {
+                    var unread = (int)NapCatApiClient.ReadLong(o["unreadCnt"] ?? o["unread"] ?? o["unread_count"]);
+                    if (unread < 0) unread = 0;
+                    conv["unread"] = unread;
+                    if (!_convPrefs.TryGetValue(convId, out var pref) || pref == null)
+                        pref = new ConvPref();
+                    pref.Unread = unread;
+                    _convPrefs[convId] = pref;
+                }
+            }
+            SavePrefs();
+        }
+    }
+
+    private void EnrichConversationMeta(JsonObject wire, string conversationId, string? preferredTitle = null)
+    {
+        if (wire == null || string.IsNullOrEmpty(conversationId)) return;
+
+        string? title = preferredTitle;
+        string? avatar = null;
+        lock (_gate)
+        {
+            var conv = _conversations.FirstOrDefault(c => (string?)c["id"] == conversationId);
+            if (conv != null)
+            {
+                title = string.IsNullOrWhiteSpace(title) ? (string?)conv["title"] : title;
+                avatar = (string?)conv["avatarPath"];
+            }
+        }
+
+        long peer = 0;
+        if (conversationId.Length > 1)
+            long.TryParse(conversationId.AsSpan(1), out peer);
+
+        var isGroup = conversationId.StartsWith("g", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(avatar) && peer > 0)
+            avatar = isGroup ? GroupAvatarUrl(peer) : FriendAvatarUrl(peer);
+        if (string.IsNullOrWhiteSpace(title))
+            title = peer > 0 ? peer.ToString() : conversationId;
+
+        wire["conversationTitle"] = title ?? "";
+        wire["conversationAvatarPath"] = avatar ?? "";
+    }
+
     private static string FriendAvatarUrl(long uin) => $"https://q1.qlogo.cn/g?b=qq&nk={uin}&s=100";
     private static string GroupAvatarUrl(long groupUin) => $"https://p.qlogo.cn/gh/{groupUin}/{groupUin}/100";
 
@@ -2128,10 +2413,17 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
     private void ApplyPrefsTo(JsonObject conv)
     {
         var id = (string?)conv["id"];
-        if (id != null && _convPrefs.TryGetValue(id, out var p))
+        if (id != null && _convPrefs.TryGetValue(id, out var pref) && pref != null)
         {
-            conv["isPinned"] = p.pinned;
-            conv["isMuted"] = p.muted;
+            conv["isPinned"] = pref.Pinned;
+            conv["isMuted"] = pref.Muted;
+            if (!string.IsNullOrEmpty(pref.LastReadAt))
+                conv["lastReadAt"] = pref.LastReadAt;
+            if (pref.Unread > 0)
+            {
+                var cur = (int)NapCatApiClient.ReadLong(conv["unread"]);
+                if (pref.Unread > cur) conv["unread"] = pref.Unread;
+            }
         }
         else
         {
@@ -2142,7 +2434,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
 
     private string PrefsPath => Path.Combine(AppContext.BaseDirectory, $"conv_prefs_napcat_{_prefsUin}.json");
 
-    private void LoadPrefs(long uin)
+        private void LoadPrefs(long uin)
     {
         _prefsUin = uin;
         _convPrefs.Clear();
@@ -2155,9 +2447,16 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             foreach (var kv in root)
             {
                 if (kv.Value is not JsonObject o) continue;
-                var pinned = o["isPinned"] is JsonValue pv && pv.TryGetValue<bool>(out var pb) && pb;
-                var muted = o["isMuted"] is JsonValue mv && mv.TryGetValue<bool>(out var mb) && mb;
-                if (pinned || muted) _convPrefs[kv.Key] = (pinned, muted);
+                var pref = new ConvPref
+                {
+                    Pinned = o["isPinned"] is JsonValue pv && pv.TryGetValue<bool>(out var pb) && pb,
+                    Muted = o["isMuted"] is JsonValue mv && mv.TryGetValue<bool>(out var mb) && mb,
+                    LastReadAt = o["lastReadAt"] is JsonValue lv && lv.TryGetValue<string>(out var ls) ? ls : null,
+                    Unread = o["unread"] is JsonValue uv && uv.TryGetValue<int>(out var ui) ? ui
+                        : o["unread"] is JsonValue uv2 && uv2.TryGetValue<double>(out var ud) ? (int)ud : 0,
+                };
+                if (pref.Pinned || pref.Muted || pref.Unread > 0 || !string.IsNullOrEmpty(pref.LastReadAt))
+                    _convPrefs[kv.Key] = pref;
             }
         }
         catch (Exception ex) { Console.WriteLine("[NapCat] LoadPrefs: " + ex.Message); }
@@ -2171,8 +2470,18 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             var root = new JsonObject();
             foreach (var kv in _convPrefs)
             {
-                if (!kv.Value.pinned && !kv.Value.muted) continue;
-                root[kv.Key] = new JsonObject { ["isPinned"] = kv.Value.pinned, ["isMuted"] = kv.Value.muted };
+                var pref = kv.Value;
+                if (pref == null) continue;
+                if (!pref.Pinned && !pref.Muted && pref.Unread <= 0 && string.IsNullOrEmpty(pref.LastReadAt))
+                    continue;
+                var o = new JsonObject
+                {
+                    ["isPinned"] = pref.Pinned,
+                    ["isMuted"] = pref.Muted,
+                    ["unread"] = pref.Unread,
+                };
+                if (!string.IsNullOrEmpty(pref.LastReadAt)) o["lastReadAt"] = pref.LastReadAt;
+                root[kv.Key] = o;
             }
             File.WriteAllText(PrefsPath, root.ToJsonString());
         }

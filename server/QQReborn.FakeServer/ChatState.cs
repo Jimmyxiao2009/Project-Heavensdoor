@@ -102,6 +102,7 @@ public class ChatState
         if (isPinned == null && isMuted == null)
             return new JsonObject { ["ok"] = false, ["reason"] = "no-flags" };
 
+        JsonObject result;
         lock (_gate)
         {
             var conv = _conversations.FirstOrDefault(c => (string)c["id"]! == conversationId);
@@ -115,7 +116,7 @@ public class ChatState
             var muted = isMuted ?? ReadBool(conv, "isMuted");
             conv["isPinned"] = pinned;
             conv["isMuted"] = muted;
-            return new JsonObject
+            result = new JsonObject
             {
                 ["ok"] = true,
                 ["conversationId"] = conversationId,
@@ -123,6 +124,57 @@ public class ChatState
                 ["isMuted"] = muted,
             };
         }
+
+        Broadcast?.Invoke(new JsonObject
+        {
+            ["type"] = "conversationFlagsChanged",
+            ["data"] = new JsonObject
+            {
+                ["conversationId"] = conversationId,
+                ["isPinned"] = result["isPinned"]!.GetValue<bool>(),
+                ["isMuted"] = result["isMuted"]!.GetValue<bool>(),
+            },
+        }.ToJsonString());
+
+        return result;
+    }
+
+    public JsonObject MarkConversationRead(string conversationId, string? lastReadAt = null)
+    {
+        string readAt;
+        if (!string.IsNullOrWhiteSpace(lastReadAt) && DateTimeOffset.TryParse(lastReadAt, out var parsed))
+            readAt = parsed.ToUniversalTime().ToString("o");
+        else
+            readAt = DateTimeOffset.UtcNow.ToString("o");
+
+        lock (_gate)
+        {
+            var conv = _conversations.FirstOrDefault(c => (string?)c["id"] == conversationId);
+            if (conv != null)
+            {
+                conv["unread"] = 0;
+                conv["lastReadAt"] = readAt;
+            }
+        }
+
+        Broadcast?.Invoke(new JsonObject
+        {
+            ["type"] = "conversationRead",
+            ["data"] = new JsonObject
+            {
+                ["conversationId"] = conversationId,
+                ["lastReadAt"] = readAt,
+                ["unread"] = 0,
+            },
+        }.ToJsonString());
+
+        return new JsonObject
+        {
+            ["ok"] = true,
+            ["conversationId"] = conversationId,
+            ["lastReadAt"] = readAt,
+            ["unread"] = 0,
+        };
     }
 
     public JsonArray GetContacts()
@@ -397,22 +449,36 @@ public class ChatState
     };
 
     private JsonObject Message(string convId, string sender, long uin, string avatar, string dir,
-        string contentType, string text, string? imagePath, string? audioPath, int voiceSeconds) => new()
+        string contentType, string text, string? imagePath, string? audioPath, int voiceSeconds)
     {
-        ["id"] = NextId(),
-        ["conversationId"] = convId,
-        ["senderName"] = sender,
-        ["senderUin"] = uin,
-        ["senderAvatarPath"] = avatar,
-        ["direction"] = dir,
-        ["contentType"] = contentType,
-        ["text"] = text,
-        ["imagePath"] = imagePath,
-        ["audioPath"] = audioPath,
-        ["voiceSeconds"] = voiceSeconds,
-        ["time"] = DateTimeOffset.UtcNow.ToString("o"),
-        ["state"] = "Sent",
-    };
+        string? convTitle = null;
+        string? convAvatar = null;
+        var conv = _conversations.FirstOrDefault(c => (string?)c["id"] == convId);
+        if (conv != null)
+        {
+            convTitle = (string?)conv["title"];
+            convAvatar = (string?)conv["avatarPath"];
+        }
+
+        return new JsonObject
+        {
+            ["id"] = NextId(),
+            ["conversationId"] = convId,
+            ["conversationTitle"] = convTitle ?? "",
+            ["conversationAvatarPath"] = convAvatar ?? "",
+            ["senderName"] = sender,
+            ["senderUin"] = uin,
+            ["senderAvatarPath"] = avatar,
+            ["direction"] = dir,
+            ["contentType"] = contentType,
+            ["text"] = text,
+            ["imagePath"] = imagePath,
+            ["audioPath"] = audioPath,
+            ["voiceSeconds"] = voiceSeconds,
+            ["time"] = DateTimeOffset.UtcNow.ToString("o"),
+            ["state"] = "Sent",
+        };
+    }
 
     private void Seed(string convId, params (string sender, string text)[] items)
     {

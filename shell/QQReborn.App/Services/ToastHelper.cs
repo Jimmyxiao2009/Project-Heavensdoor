@@ -15,23 +15,32 @@ namespace QQReborn.App.Services
             }
 
             // Final defense at the actual Windows Toast emission point: global mute-all,
-            // per-conversation mute, and 特别关心 break-through live here so every
+            // per-conversation mute, and special-care break-through live here so every
             // call site cannot forget a gate.
             if (NotificationMuteGate.ShouldSuppressNotification(conversationId)) return;
 
             senderName = WebUtility.HtmlEncode(senderName ?? "Unknown");
             preview = WebUtility.HtmlEncode(preview ?? "");
-            avatarUrl = WebUtility.HtmlEncode(avatarUrl ?? "");
+            avatarUrl = (avatarUrl ?? "").Trim();
 
-            string xmlStr = $@"<toast>
-  <visual>
-    <binding template='ToastGeneric'>
-      <text>{senderName}</text>
-      <text>{preview}</text>
-      <image placement='appLogoOverride' hint-crop='circle' src='{avatarUrl}'/>
-    </binding>
-  </visual>
-</toast>";
+            // Only attach an avatar node when we have a real URL/path. An empty src makes
+            // some WP builds fall back to a broken/default tile and looks like "wrong avatar".
+            string imageNode = "";
+            if (!string.IsNullOrEmpty(avatarUrl))
+            {
+                imageNode = Environment.NewLine + "      <image placement='appLogoOverride' hint-crop='circle' src='"
+                    + WebUtility.HtmlEncode(avatarUrl) + "'/>";
+            }
+
+            string xmlStr =
+                "<toast>" + Environment.NewLine
+                + "  <visual>" + Environment.NewLine
+                + "    <binding template='ToastGeneric'>" + Environment.NewLine
+                + "      <text>" + senderName + "</text>" + Environment.NewLine
+                + "      <text>" + preview + "</text>" + imageNode + Environment.NewLine
+                + "    </binding>" + Environment.NewLine
+                + "  </visual>" + Environment.NewLine
+                + "</toast>";
 
             var doc = new XmlDocument();
             doc.LoadXml(xmlStr);

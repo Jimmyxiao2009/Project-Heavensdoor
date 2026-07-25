@@ -51,10 +51,60 @@ namespace QQReborn.App.Views
 
                 // 按会话 Id 找到对应会话；找不到则不弹（列表尚未合成时由 toast 侧负责）。
                 var conv = _vm.Conversations.FirstOrDefault(c => c.Id == msg.ConversationId);
-                if (conv == null || conv.IsMuted) return;
+                // Mute already checked via NotificationMuteGate; ignore lagging conv.IsMuted.
 
-                Banner.Show(conv.AvatarPath, conv.Title, msg.Text,
-                    () => Frame.Navigate(typeof(ConversationPage), conv));
+                var preview = msg.Text ?? "";
+                switch (msg.ContentType)
+                {
+                    case MessageContentType.Image: preview = "[图片]"; break;
+                    case MessageContentType.Sticker: preview = "[表情]"; break;
+                    case MessageContentType.Voice: preview = "[语音]"; break;
+                    case MessageContentType.Location: preview = "[位置]"; break;
+                    case MessageContentType.Video: preview = "[视频]"; break;
+                    case MessageContentType.FileMsg: preview = "[文件]"; break;
+                }
+
+                var isGroup = (conv != null && conv.IsGroup)
+                    || (!string.IsNullOrEmpty(msg.ConversationId)
+                        && msg.ConversationId.StartsWith("g", StringComparison.OrdinalIgnoreCase));
+
+                string title;
+                string avatar;
+                string body;
+                if (isGroup)
+                {
+                    title = !string.IsNullOrEmpty(msg.ConversationTitle) ? msg.ConversationTitle
+                        : (conv != null && !string.IsNullOrEmpty(conv.Title) ? conv.Title : msg.SenderName);
+                    avatar = !string.IsNullOrEmpty(msg.ConversationAvatarPath) ? msg.ConversationAvatarPath
+                        : (conv != null ? conv.AvatarPath : null);
+                    if (string.IsNullOrEmpty(avatar) && !string.IsNullOrEmpty(msg.ConversationId) && msg.ConversationId.Length > 1)
+                    {
+                        long g;
+                        if (long.TryParse(msg.ConversationId.Substring(1), out g) && g > 0)
+                            avatar = "https://p.qlogo.cn/gh/" + g + "/" + g + "/100";
+                    }
+                    body = string.IsNullOrEmpty(msg.SenderName) ? preview : (msg.SenderName + ": " + preview);
+                }
+                else
+                {
+                    title = conv != null && !string.IsNullOrEmpty(conv.Title) ? conv.Title
+                        : (!string.IsNullOrEmpty(msg.ConversationTitle) ? msg.ConversationTitle : msg.SenderName);
+                    avatar = conv != null && !string.IsNullOrEmpty(conv.AvatarPath) ? conv.AvatarPath
+                        : (!string.IsNullOrEmpty(msg.ConversationAvatarPath) ? msg.ConversationAvatarPath : msg.SenderAvatarPath);
+                    body = preview;
+                }
+
+                if (conv != null)
+                {
+                    Banner.Show(avatar, title, body,
+                        () => Frame.Navigate(typeof(ConversationPage), conv));
+                }
+                else
+                {
+                    // List row not ready yet — still show banner with wire meta; tap is no-op.
+                    Banner.Show(avatar, title, body, null);
+                }
+
             });
         }
 
@@ -377,7 +427,7 @@ namespace QQReborn.App.Views
 
         private static async System.Threading.Tasks.Task MarkReadSafeAsync(RemoteChatService remote, string conversationId)
         {
-            try { await remote.MarkConversationReadAsync(conversationId); }
+            try { await remote.MarkConversationReadAsync(conversationId, System.DateTimeOffset.UtcNow.ToString("o")); }
             catch { }
         }
 
@@ -488,7 +538,7 @@ namespace QQReborn.App.Views
                     UnreadBadgeStore.Clear(conv.Id);
                     if (App.ChatService is RemoteChatService remote)
                     {
-                        var _ = remote.MarkConversationReadAsync(conv.Id);
+                        var _ = remote.MarkConversationReadAsync(conv.Id, System.DateTimeOffset.UtcNow.ToString("o"));
                     }
                 };
                 menu.Items.Add(read);

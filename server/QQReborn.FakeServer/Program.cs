@@ -131,6 +131,7 @@ string? Handle(string text)
             "quitGroup" => state.QuitGroup(S(req, "conversationId") ?? ""),
             "nudge" => state.SendNudge(S(req, "conversationId") ?? "", (long)N(req, "targetUin")),
             "setAvatar" => state.SetAvatar(S(req, "imageBase64") ?? ""),
+            "markConversationRead" => state.MarkConversationRead(S(req, "conversationId") ?? "", S(req, "lastReadAt")),
             "setConversationFlags" => state.SetConversationFlags(
                 S(req, "conversationId") ?? "", B(req, "isPinned"), B(req, "isMuted")),
             "send" => state.Send(

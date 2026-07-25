@@ -52,7 +52,7 @@ namespace QQReborn.App.Services
                 s.ServerPort = spp;
             else
                 s.ServerPort = 8765;
-            s.AccessPassword = values.TryGetValue(KeyAccessPassword, out var ap) && ap is string aps ? aps : "";
+            s.AccessPassword = values.TryGetValue(KeyAccessPassword, out var ap) && ap is string aps ? (aps ?? "").Trim() : "";
             s.UseSelfHostedSignServer = values.TryGetValue(KeyUseSelfHostedSignServer, out var sh) && sh is bool shb && shb;
             s.SignServerUrl = values.TryGetValue(KeySignServerUrl, out var su) && su is string sus && !string.IsNullOrWhiteSpace(sus) ? sus : "https://sign.lagrangecore.org";
             s.SignToken = values.TryGetValue(KeySignToken, out var st) && st is string sts ? sts : "";
@@ -77,7 +77,7 @@ namespace QQReborn.App.Services
             values[KeyServerHost] = string.IsNullOrWhiteSpace(settings.ServerHost) ? "localhost" : settings.ServerHost.Trim();
             var port = settings.ServerPort > 0 && settings.ServerPort < 65536 ? settings.ServerPort : 8765;
             values[KeyServerPort] = port;
-            values[KeyAccessPassword] = settings.AccessPassword ?? "";
+            values[KeyAccessPassword] = (settings.AccessPassword ?? "").Trim();
             values[KeyUseSelfHostedSignServer] = settings.UseSelfHostedSignServer;
             values[KeySignServerUrl] = string.IsNullOrWhiteSpace(settings.SignServerUrl) ? "https://sign.lagrangecore.org" : settings.SignServerUrl.Trim();
             values[KeySignToken] = settings.SignToken ?? "";

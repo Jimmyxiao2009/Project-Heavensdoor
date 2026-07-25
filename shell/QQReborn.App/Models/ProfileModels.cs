@@ -19,10 +19,10 @@ namespace QQReborn.App.Models
         public int FontSizeLevel { get; set; } = 1;
 
         /// <summary>Host of the fake/real server (no scheme/port); "localhost" on desktop,
-        /// the PC's LAN IP on a phone, or SakuraFrp access host when outdoors.</summary>
+        /// the PC's LAN IP on a phone, or Frp access host (OpenFrp/Sakura/etc.) when outdoors.</summary>
         public string ServerHost { get; set; } = "localhost";
 
-        /// <summary>Wire port (default 8765). Set to SakuraFrp remote port when it is not 8765.</summary>
+        /// <summary>Wire port (default 8765). Set to Frp remote port when it is not 8765.</summary>
         public int ServerPort { get; set; } = 8765;
 
         public string AccessPassword { get; set; } = "";

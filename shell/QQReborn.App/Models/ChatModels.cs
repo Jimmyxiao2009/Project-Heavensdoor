@@ -208,6 +208,9 @@ namespace QQReborn.App.Models
         public bool HasUnread => _unread > 0;
         public string UnreadText => _unread > 99 ? "99+" : _unread.ToString();
 
+        /// <summary>ISO-8601 last-read watermark from gateway (optional).</summary>
+        public string LastReadAt { get; set; }
+
         /// <summary>Preview prefixed with a [有人@我] badge when mentioned.</summary>
         public string PreviewDisplay => _atMe ? "[有人@我] " + _preview : _preview;
 

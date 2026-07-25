@@ -116,6 +116,8 @@ namespace QQReborn.App.Services
         private static MomentComment C(string author, string text)
             => new MomentComment { Author = author, Text = text };
 
+        public Task<IReadOnlyList<Moment>> RefreshFeedAsync() => GetFeedAsync();
+
         public Task<IReadOnlyList<Moment>> GetFeedAsync()
         {
             if (_feed == null) _feed = BuildFeed();

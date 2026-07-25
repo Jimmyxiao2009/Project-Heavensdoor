@@ -44,7 +44,9 @@ namespace QQReborn.App.Views
             try
             {
                 SyncText.Text = "同步中...";
-                await _vm.LoadAsync();
+                await _vm.LoadAsync();
+            // after load hasmore
+            if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
                 SyncText.Text = "已同步";
             }
             catch
@@ -64,7 +66,8 @@ namespace QQReborn.App.Views
             // yanking the list under the user's finger.
             try
             {
-                await _vm.RefreshAsync();
+                await _vm.RefreshAsync();
+                if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
                 if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
                 SyncText.Text = "已更新";
             }
@@ -80,7 +83,8 @@ namespace QQReborn.App.Views
             SyncText.Text = "同步中...";
             try
             {
-                await _vm.RefreshAsync();
+                await _vm.RefreshAsync();
+                if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
                 SyncText.Text = "已同步";
             }
             catch

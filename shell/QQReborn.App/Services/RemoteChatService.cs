@@ -36,6 +36,20 @@ namespace QQReborn.App.Services
         public string Message { get; set; }
     }
 
+    /// <summary>Pushed when any client changes pin/mute via setConversationFlags.</summary>
+    public class ConversationFlagsChangedInfo
+    {
+        public string ConversationId { get; set; }
+        public bool IsPinned { get; set; }
+        public bool IsMuted { get; set; }
+    }
+
+    public class ConversationReadInfo
+    {
+        public string ConversationId { get; set; }
+        public string LastReadAt { get; set; }
+    }
+
     /// <summary>Pushed when NapCat reports a friend/group message recall.</summary>
     public class MessageRecalledInfo
     {
@@ -66,8 +80,8 @@ namespace QQReborn.App.Services
 
         /// <summary>
         /// Builds "ws://{host}:{port}/ws" from LocalSettings.
-        /// Host: localhost / LAN IP / SakuraFrp access host.
-        /// Port: 8765 at home, or the Frp remote port when outdoors.
+        /// Host: localhost / LAN IP / Frp access host (OpenFrp/Sakura/etc.).
+        /// Port: 8765 at home, or the Frp remote port when outdoors (OpenFrp/Sakura/etc.).
         /// </summary>
         private static string BuildServerUrl()
         {
@@ -85,14 +99,140 @@ namespace QQReborn.App.Services
             {
                 // LocalSettings unavailable (e.g. unit test host) -> keep default.
             }
+
+            // Users often paste "ws://host:port/ws" or "host:port" into the host box.
+            // Strip scheme/path and, when present, take an embedded port.
+            host = NormalizeServerHost(host, ref port);
             return "ws://" + host + ":" + port.ToString(CultureInfo.InvariantCulture) + "/ws";
+        }
+
+        /// <summary>
+        /// Accepts bare host, host:port, ws(s)://host[:port][/path], http(s)://...
+        /// Returns host only; updates <paramref name="port"/> when the input embeds one.
+        /// </summary>
+        internal static string NormalizeServerHost(string raw, ref int port)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return DefaultServerHost;
+            var s = raw.Trim();
+
+            // Strip surrounding brackets from IPv6 literals: [2001:db8::1]
+            // (full bracketed form handled below when a port is also present).
+            if (s.StartsWith("[", StringComparison.Ordinal) && s.EndsWith("]", StringComparison.Ordinal) && s.Length > 2)
+                return s.Substring(1, s.Length - 2);
+
+            // scheme://...
+            var schemeIdx = s.IndexOf("://", StringComparison.Ordinal);
+            if (schemeIdx >= 0)
+                s = s.Substring(schemeIdx + 3);
+
+            // drop path/query/fragment
+            var cut = s.IndexOfAny(new[] { '/', '?', '#' });
+            if (cut >= 0) s = s.Substring(0, cut);
+            s = s.Trim();
+            if (string.IsNullOrEmpty(s)) return DefaultServerHost;
+
+            // [ipv6]:port
+            if (s.StartsWith("[", StringComparison.Ordinal))
+            {
+                var close = s.IndexOf(']');
+                if (close > 1)
+                {
+                    var hostPart = s.Substring(1, close - 1);
+                    if (close + 1 < s.Length && s[close + 1] == ':')
+                    {
+                        var portPart = s.Substring(close + 2);
+                        int embedded;
+                        if (int.TryParse(portPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out embedded)
+                            && embedded > 0 && embedded < 65536)
+                            port = embedded;
+                    }
+                    return string.IsNullOrWhiteSpace(hostPart) ? DefaultServerHost : hostPart;
+                }
+            }
+
+            // host:port (avoid splitting IPv6 which contains multiple ':')
+            var lastColon = s.LastIndexOf(':');
+            if (lastColon > 0 && s.IndexOf(':') == lastColon)
+            {
+                var hostPart = s.Substring(0, lastColon).Trim();
+                var portPart = s.Substring(lastColon + 1).Trim();
+                int embedded;
+                if (int.TryParse(portPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out embedded)
+                    && embedded > 0 && embedded < 65536)
+                {
+                    port = embedded;
+                    return string.IsNullOrWhiteSpace(hostPart) ? DefaultServerHost : hostPart;
+                }
+            }
+
+            return s;
+        }
+
+        private static bool IsLoopbackOrLanHost(string host)
+        {
+            if (string.IsNullOrWhiteSpace(host)) return true;
+            host = host.Trim().Trim('[', ']');
+            if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+                || host == "127.0.0.1"
+                || host == "::1")
+                return true;
+            if (host.StartsWith("192.168.", StringComparison.Ordinal)
+                || host.StartsWith("10.", StringComparison.Ordinal)
+                || host.StartsWith("172.16.", StringComparison.Ordinal)
+                || host.StartsWith("172.17.", StringComparison.Ordinal)
+                || host.StartsWith("172.18.", StringComparison.Ordinal)
+                || host.StartsWith("172.19.", StringComparison.Ordinal)
+                || host.StartsWith("172.2", StringComparison.Ordinal)
+                || host.StartsWith("172.30.", StringComparison.Ordinal)
+                || host.StartsWith("172.31.", StringComparison.Ordinal))
+                return true;
+            return false;
+        }
+
+        private static int ConnectTimeoutSecondsForUrl(string url)
+        {
+            try
+            {
+                var u = new Uri(url);
+                return IsLoopbackOrLanHost(u.Host) ? 12 : 28;
+            }
+            catch { return 20; }
+        }
+
+        private static bool IsTransientConnectFailure(Exception ex)
+        {
+            if (ex == null) return false;
+            if (ex is TimeoutException) return true;
+            var agg = ex as AggregateException;
+            if (agg != null && agg.InnerExceptions != null && agg.InnerExceptions.Count > 0)
+                ex = agg.InnerExceptions[0];
+            if (ex.InnerException != null) ex = ex.InnerException;
+            var hr = ex.HResult;
+            var msg = ex.Message ?? "";
+            if (hr == unchecked((int)0x8007274C)
+                || hr == unchecked((int)0x8007274D)
+                || hr == unchecked((int)0x80072743)
+                || hr == unchecked((int)0x80072751)
+                || hr == unchecked((int)0x80072745)
+                || hr == unchecked((int)0x80072746))
+                return true;
+            if (msg.IndexOf("timed out", StringComparison.OrdinalIgnoreCase) >= 0
+                || msg.IndexOf("timeout", StringComparison.OrdinalIgnoreCase) >= 0
+                || msg.IndexOf("超时", StringComparison.Ordinal) >= 0
+                || msg.IndexOf("拒绝", StringComparison.Ordinal) >= 0
+                || msg.IndexOf("refused", StringComparison.OrdinalIgnoreCase) >= 0
+                || msg.IndexOf("unreachable", StringComparison.OrdinalIgnoreCase) >= 0
+                || msg.IndexOf("reset", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+            return false;
         }
 
         private static string ReadAccessPassword()
         {
             try
             {
-                return ApplicationData.Current.LocalSettings.Values[AccessPasswordSettingKey] as string ?? "";
+                var raw = ApplicationData.Current.LocalSettings.Values[AccessPasswordSettingKey] as string ?? "";
+                return raw.Trim();
             }
             catch { return ""; }
         }
@@ -122,6 +262,9 @@ namespace QQReborn.App.Services
 
         public event EventHandler<ChatMessage> MessageReceived;
         public event EventHandler<MessageRecalledInfo> MessageRecalled;
+        public event EventHandler<ConversationFlagsChangedInfo> ConversationFlagsChanged;
+
+        public event EventHandler<ConversationReadInfo> ConversationRead;
         public event EventHandler<TypingState> TypingChanged;
         public event EventHandler<QrCodeInfo> QrCodeReceived;
         public event EventHandler<LoginStatusInfo> LoginStatusChanged;
@@ -146,64 +289,103 @@ namespace QQReborn.App.Services
             try
             {
                 if (_connected) return;
-                // Dispose any stale socket/writer from a previous (dropped) connection so we
-                // don't leak native handles or stack duplicate event subscriptions.
-                CleanupSocket();
-                var ws = new MessageWebSocket();
-                ws.Control.MessageType = SocketMessageType.Utf8;
-                ws.MessageReceived += OnMessage;
-                ws.Closed += OnClosed;
-                _ws = ws;
 
                 var url = BuildServerUrl();
-                Task connectTask;
-                try
-                {
-                    connectTask = ws.ConnectAsync(new Uri(url)).AsTask();
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception(FormatSocketError("无法开始连接 " + url, ex), ex);
-                }
+                var timeoutSec = ConnectTimeoutSecondsForUrl(url);
+                // Frp cold path is flaky: DNS / node hop / tunnel wake. Retry a few times
+                // inside the connect lock so callers only see the final outcome.
+                var maxAttempts = timeoutSec >= 20 ? 3 : 2;
+                Exception lastError = null;
 
-                var completed = await Task.WhenAny(connectTask, Task.Delay(TimeSpan.FromSeconds(12)));
-                if (completed != connectTask)
+                for (var attempt = 1; attempt <= maxAttempts; attempt++)
                 {
-                    // Abort the in-flight connect; never leave a half-open MessageWebSocket.
                     CleanupSocket();
-                    // Observe the abandoned task so it doesn't surface as unhandled later.
-                    var ignored = connectTask.ContinueWith(t =>
+                    var ws = new MessageWebSocket();
+                    ws.Control.MessageType = SocketMessageType.Utf8;
+                    // MessageWebSocketControl.KeepAliveInterval is not available on
+                    // older UWP / W10M targets (15063). Rely on app-level reconnect.
+                    ws.MessageReceived += OnMessage;
+                    ws.Closed += OnClosed;
+                    _ws = ws;
+
+                    Task connectTask;
+                    try
                     {
-                        try { var _ = t.Exception; } catch { }
-                    }, TaskContinuationOptions.OnlyOnFaulted);
-                    throw new TimeoutException("连接网关超时（" + url + "）。请确认管家已启动且手机能访问该地址/端口。");
+                        connectTask = ws.ConnectAsync(new Uri(url)).AsTask();
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = new Exception(FormatSocketError("无法开始连接 " + url, ex), ex);
+                        CleanupSocket();
+                        if (attempt >= maxAttempts || !IsTransientConnectFailure(ex)) break;
+                        await Task.Delay(TimeSpan.FromMilliseconds(400 * attempt));
+                        continue;
+                    }
+
+                    var completed = await Task.WhenAny(connectTask, Task.Delay(TimeSpan.FromSeconds(timeoutSec)));
+                    if (completed != connectTask)
+                    {
+                        // Abort the in-flight connect; never leave a half-open MessageWebSocket.
+                        CleanupSocket();
+                        // Observe the abandoned task so it doesn't surface as unhandled later.
+                        var ignored = connectTask.ContinueWith(t =>
+                        {
+                            try { var _ = t.Exception; } catch { }
+                        }, TaskContinuationOptions.OnlyOnFaulted);
+                        lastError = new TimeoutException(
+                            "连接网关超时（" + url + "，" + timeoutSec + "s，第" + attempt + "/" + maxAttempts
+                            + "次）。请确认管家已启动、OpenFrp/Frp 隧道在线，且手机能访问该地址/端口。");
+                        if (attempt >= maxAttempts) break;
+                        await Task.Delay(TimeSpan.FromMilliseconds(600 * attempt));
+                        continue;
+                    }
+
+                    try
+                    {
+                        await connectTask;
+                    }
+                    catch (Exception ex)
+                    {
+                        CleanupSocket();
+                        lastError = new Exception(FormatSocketError("连接网关失败（" + url + "）", ex), ex);
+                        if (attempt >= maxAttempts || !IsTransientConnectFailure(ex)) break;
+                        await Task.Delay(TimeSpan.FromMilliseconds(600 * attempt));
+                        continue;
+                    }
+
+                    _writer = new DataWriter(ws.OutputStream);
+                    // Auth while still holding _connLock so no other caller races mid-handshake.
+                    try
+                    {
+                        await AuthenticateAsync(timeoutSec >= 20 ? 18 : 10);
+                    }
+                    catch (Exception ex)
+                    {
+                        CleanupSocket();
+                        _connected = false;
+                        lastError = new Exception(FormatSocketError("网关鉴权失败", ex), ex);
+                        // Wrong password is not transient — do not burn retries.
+                        var msg = ex.Message ?? "";
+                        if (msg.IndexOf("访问密码错误", StringComparison.Ordinal) >= 0
+                            || msg.IndexOf("authentication failed", StringComparison.OrdinalIgnoreCase) >= 0)
+                            break;
+                        if (attempt >= maxAttempts || !IsTransientConnectFailure(ex)) break;
+                        await Task.Delay(TimeSpan.FromMilliseconds(600 * attempt));
+                        continue;
+                    }
+
+                    _connected = true;
+                    _everConnected = true;
+                    lastError = null;
+                    break;
                 }
 
-                try
-                {
-                    await connectTask;
-                }
-                catch (Exception ex)
+                if (!_connected)
                 {
                     CleanupSocket();
-                    throw new Exception(FormatSocketError("连接网关失败（" + url + "）", ex), ex);
+                    if (lastError != null) throw lastError;
+                    throw new Exception("连接网关失败（" + url + "）");
                 }
-
-                _writer = new DataWriter(ws.OutputStream);
-                // Auth while still holding _connLock so no other caller races mid-handshake.
-                try
-                {
-                    await AuthenticateAsync();
-                }
-                catch (Exception ex)
-                {
-                    CleanupSocket();
-                    _connected = false;
-                    throw new Exception(FormatSocketError("网关鉴权失败", ex), ex);
-                }
-
-                _connected = true;
-                _everConnected = true;
             }
             catch
             {
@@ -214,7 +396,7 @@ namespace QQReborn.App.Services
             finally { _connLock.Release(); }
         }
 
-        private async Task AuthenticateAsync()
+        private async Task AuthenticateAsync(int timeoutSeconds = 10)
         {
             var id = Guid.NewGuid().ToString("N");
             var req = new JsonObject
@@ -244,7 +426,7 @@ namespace QQReborn.App.Services
             }
             finally { _writeLock.Release(); }
 
-            using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+            using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds < 5 ? 5 : timeoutSeconds)))
             using (cts.Token.Register(() =>
             {
                 if (_pending.TryRemove(id, out var t))
@@ -388,8 +570,8 @@ namespace QQReborn.App.Services
         }
 
         /// <summary>
-        /// Retries EnsureConnectedAsync with exponential backoff (2s/4s/8s/16s, capped at
-        /// 30s) until it succeeds, then fires Reconnected on the UI thread. Runs entirely
+        /// Retries EnsureConnectedAsync with exponential backoff (1s/2s/4s/..., capped at
+        /// 20s) until it succeeds, then fires Reconnected on the UI thread. Runs entirely
         /// on background threads via Task.Delay (never a DispatcherTimer, which requires
         /// UI-thread creation); EnsureConnectedAsync internally serializes on _connLock,
         /// so this is safe to race against a concurrent RequestAsync-triggered connect.
@@ -398,8 +580,9 @@ namespace QQReborn.App.Services
         {
             try
             {
-                var delay = TimeSpan.FromSeconds(2);
-                var maxDelay = TimeSpan.FromSeconds(30);
+                // Start quickly: Frp blips often recover within 1-2s.
+                var delay = TimeSpan.FromSeconds(1);
+                var maxDelay = TimeSpan.FromSeconds(20);
                 while (true)
                 {
                     await Task.Delay(delay);
@@ -498,6 +681,38 @@ namespace QQReborn.App.Services
                     Preview = Str(data, "preview"),
                 };
                 RunOnUi(() => MessageRecalled?.Invoke(this, info));
+            }
+            else if (type == "conversationFlagsChanged")
+            {
+                var data = frame.GetNamedObject("data");
+                var info = new ConversationFlagsChangedInfo
+                {
+                    ConversationId = Str(data, "conversationId"),
+                    IsPinned = data.GetNamedBoolean("isPinned", false),
+                    IsMuted = data.GetNamedBoolean("isMuted", false),
+                };
+                if (!string.IsNullOrEmpty(info.ConversationId))
+                {
+                    // Keep local toast gate aligned even before the UI list applies the row.
+                    NotificationMuteGate.SetConversationMuted(info.ConversationId, info.IsMuted);
+                    if (info.IsMuted) UnreadBadgeStore.Clear(info.ConversationId);
+                    RunOnUi(() => ConversationFlagsChanged?.Invoke(this, info));
+                }
+            }
+            else if (type == "conversationRead")
+            {
+                var data = frame.GetNamedObject("data");
+                var convId = Str(data, "conversationId");
+                if (!string.IsNullOrEmpty(convId))
+                {
+                    UnreadBadgeStore.Clear(convId);
+                    var info = new ConversationReadInfo
+                    {
+                        ConversationId = convId,
+                        LastReadAt = Str(data, "lastReadAt"),
+                    };
+                    RunOnUi(() => ConversationRead?.Invoke(this, info));
+                }
             }
             else if (type == "typing")
             {
@@ -626,6 +841,7 @@ namespace QQReborn.App.Services
                     Preview = Str(o, "preview"),
                     LastTime = ParseTime(Str(o, "lastTime")),
                     Unread = (int)o.GetNamedNumber("unread", 0),
+                    LastReadAt = Str(o, "lastReadAt"),
                     Announcement = Str(o, "announcement"),
                     IsPinned = o.GetNamedBoolean("isPinned", false),
                     IsMuted = o.GetNamedBoolean("isMuted", false),
@@ -656,17 +872,44 @@ namespace QQReborn.App.Services
 
         /// <summary>Clear server-side unread while the user is viewing this conversation
         /// (so live messages don't leave a badge after they go back to the list).</summary>
-        public async Task MarkConversationReadAsync(string conversationId)
+        public async Task MarkConversationReadAsync(string conversationId, string lastReadAt = null)
         {
             if (string.IsNullOrEmpty(conversationId)) return;
             try
             {
-                await RequestAsync("markConversationRead",
-                    r => r["conversationId"] = JsonValue.CreateStringValue(conversationId));
+                if (string.IsNullOrWhiteSpace(lastReadAt))
+                    lastReadAt = DateTimeOffset.UtcNow.ToString("o");
+                await RequestAsync("markConversationRead", r =>
+                {
+                    r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                    r["lastReadAt"] = JsonValue.CreateStringValue(lastReadAt);
+                });
             }
             catch
             {
                 // Best-effort.
+            }
+        }
+
+        /// <summary>Connect + auth as soon as the app starts so offline push/unread can flow
+        /// before the user opens the conversation list.</summary>
+        public void StartAutoConnect()
+        {
+            // Prefer a soft ensure when already up; ForceReconnect tears down a healthy socket.
+            var ignored = AutoConnectAsync();
+        }
+
+        private async Task AutoConnectAsync()
+        {
+            try
+            {
+                if (_connected) return;
+                await EnsureConnectedAsync();
+                RunOnUi(() => Reconnected?.Invoke(this, EventArgs.Empty));
+            }
+            catch
+            {
+                TryStartReconnectLoop();
             }
         }
 
@@ -996,7 +1239,7 @@ namespace QQReborn.App.Services
                 r["conversationId"] = JsonValue.CreateStringValue(conversationId);
                 r["messageId"] = JsonValue.CreateStringValue(messageId);
             }));
-            return data.GetNamedBoolean("recalled", false);
+            return data.GetNamedBoolean("recalled", false) || data.GetNamedBoolean("ok", false);
         }
 
         /// <summary>Leaves a group conversation. Returns data.left as reported by the server
@@ -1006,7 +1249,7 @@ namespace QQReborn.App.Services
         {
             var data = JsonObject.Parse(await RequestAsync("quitGroup",
                 r => r["conversationId"] = JsonValue.CreateStringValue(conversationId)));
-            return data.GetNamedBoolean("left", false);
+            return data.GetNamedBoolean("left", false) || data.GetNamedBoolean("ok", false);
         }
 
         /// <summary>Sends a "poke"/nudge to the given target within a conversation. Returns
@@ -1131,15 +1374,19 @@ namespace QQReborn.App.Services
         }
 
         /// <summary>Space / 动态 feed from webhook-ingested posts on RealServer.</summary>
-        public async Task<IReadOnlyList<Moment>> GetSpaceFeedAsync()
+        public async Task<IReadOnlyList<Moment>> GetSpaceFeedAsync(bool forceRefresh = false)
         {
             var list = new List<Moment>();
             try
             {
-                var raw = await RequestAsync("getMoments", null);
+                var raw = forceRefresh
+                    ? await RequestAsync("fetchSpaceFeed", null, timeoutSeconds: 45)
+                    : await RequestAsync("getMoments", null, timeoutSeconds: 45);
                 if (string.IsNullOrEmpty(raw) || raw == "null") return list;
                 var data = JsonObject.Parse(raw);
                 if (data == null) return list;
+                if (data.ContainsKey("hasMore"))
+                    SpaceFeedHasMore = data.GetNamedBoolean("hasMore", SpaceFeedHasMore);
                 var arr = data.GetNamedArray("moments", new JsonArray());
                 foreach (var n in arr)
                 {

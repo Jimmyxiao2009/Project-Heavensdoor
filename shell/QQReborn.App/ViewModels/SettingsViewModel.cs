@@ -64,7 +64,7 @@ namespace QQReborn.App.ViewModels
         }
 
         private string _serverHost = "localhost";
-        /// <summary>Server host (no scheme). localhost / LAN IP / SakuraFrp host.</summary>
+        /// <summary>Server host (no scheme). localhost / LAN IP / Frp host (OpenFrp/Sakura/etc.).</summary>
         public string ServerHost
         {
             get => _serverHost;
@@ -231,11 +231,23 @@ namespace QQReborn.App.ViewModels
                 _settings.Notifications = _notifications;
                 _settings.EnterToSend = _enterToSend;
                 _settings.FontSizeLevel = (int)System.Math.Round(_fontSizeLevel);
-                _settings.ServerHost = Truncate(_serverHost);
                 int port;
                 if (!int.TryParse((_serverPortText ?? "").Trim(), out port) || port <= 0 || port >= 65536)
                     port = 8765;
+                // Same host sanitizer as the WebSocket client: accept pasted ws://host:port/ws.
+                var host = Services.RemoteChatService.NormalizeServerHost(_serverHost ?? "", ref port);
+                _settings.ServerHost = Truncate(host);
                 _settings.ServerPort = port;
+                // Keep the UI in sync when the user pasted a full URL into the host box.
+                var portText = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (!string.Equals(_serverHost, host, System.StringComparison.Ordinal)
+                    || !string.Equals(_serverPortText, portText, System.StringComparison.Ordinal))
+                {
+                    _serverHost = host;
+                    _serverPortText = portText;
+                    RaisePropertyChanged(nameof(ServerHost));
+                    RaisePropertyChanged(nameof(ServerPortText));
+                }
                 _settings.AccessPassword = Truncate(_accessPassword);
                 _settings.UseSelfHostedSignServer = _useSelfHostedSignServer;
                 _settings.SignServerUrl = Truncate(_signServerUrl);
@@ -262,7 +274,9 @@ namespace QQReborn.App.ViewModels
         /// token/host that would silently break the setting it belongs to.</summary>
         private static string Truncate(string value)
         {
-            if (value != null && value.Length > MaxPersistedValueLength) return string.Empty;
+            if (value == null) return null;
+            value = value.Trim();
+            if (value.Length > MaxPersistedValueLength) return string.Empty;
             return value;
         }
     }

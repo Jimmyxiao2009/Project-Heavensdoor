@@ -50,7 +50,7 @@ namespace QQReborn.App.ViewModels
             StatusText = "准备连接网关";
             StatusDetailText = "将使用设置里的服务器地址、端口和访问密码。"
                 + " 号在电脑 NapCat/NTQQ 中已登录即可，无需扫码。"
-                + " 出门请把地址改成 SakuraFrp 主机。";
+                + " 出门请把地址改成 OpenFrp/Frp 访问主机。";
             ShowStartButton = true;
         }
     }

@@ -168,7 +168,7 @@ namespace QQReborn.App.Views
 
         private static async System.Threading.Tasks.Task MarkConversationReadInBackgroundAsync(RemoteChatService remote, string conversationId)
         {
-            try { await remote.MarkConversationReadAsync(conversationId); }
+            try { await remote.MarkConversationReadAsync(conversationId, System.DateTimeOffset.UtcNow.ToString("o")); }
             catch (Exception ex) { System.Diagnostics.Debug.WriteLine("Mark read failed: " + ex); }
         }
 
@@ -250,7 +250,7 @@ namespace QQReborn.App.Views
                 UnreadBadgeStore.Clear(msg.ConversationId);
                 if (_chat is RemoteChatService remoteLive)
                 {
-                    try { await remoteLive.MarkConversationReadAsync(msg.ConversationId); }
+                    try { await remoteLive.MarkConversationReadAsync(msg.ConversationId, System.DateTimeOffset.UtcNow.ToString("o")); }
                     catch { /* best-effort */ }
                 }
             }

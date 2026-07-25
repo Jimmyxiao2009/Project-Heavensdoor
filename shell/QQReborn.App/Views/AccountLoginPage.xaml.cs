@@ -88,12 +88,19 @@ namespace QQReborn.App.Views
             catch (Exception ex)
             {
                 var msg = RemoteChatService.FormatSocketError("连接失败", ex);
-                if (msg.IndexOf("访问密码", StringComparison.Ordinal) >= 0
-                    || (ex.Message ?? "").IndexOf("访问密码", StringComparison.Ordinal) >= 0
-                    || (ex.Message ?? "").IndexOf("auth", StringComparison.OrdinalIgnoreCase) >= 0)
+                var detail = (ex.Message ?? "") + "\n" + msg;
+                // Only the server explicit rejection is a wrong-password failure.
+                // Auth-timeout messages also mention access password and must not show as wrong password.
+                if (detail.IndexOf("访问密码错误", StringComparison.Ordinal) >= 0
+                    || detail.IndexOf("authentication failed", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     _vm.StatusText = "访问密码错误";
                     _vm.StatusDetailText = "请到设置中填写与电脑管家一致的访问密码后重试。当前管家密码在管家里可复制。";
+                }
+                else if (detail.IndexOf("鉴权超时", StringComparison.Ordinal) >= 0)
+                {
+                    _vm.StatusText = "网关鉴权超时";
+                    _vm.StatusDetailText = "已连上地址，但鉴权无响应。请确认管家网关在线，且设置里的访问密码与管家完全一致后重试。";
                 }
                 else if (msg.IndexOf("0x8000000E", StringComparison.OrdinalIgnoreCase) >= 0
                          || ex.HResult == unchecked((int)0x8000000E))

@@ -13,11 +13,23 @@ builder.Services.AddSingleton<SessionHub>();
 var app = builder.Build();
 app.UseWebSockets();
 
-var accessPassword = builder.Configuration["QQReborn:AccessPassword"]
-    ?? Environment.GetEnvironmentVariable("QQREBORN_ACCESS_PASSWORD")
-    ?? Environment.GetEnvironmentVariable("QQReborn__AccessPassword")
-    ?? "";
-accessPassword = accessPassword.Trim();
+// Prefer non-empty values. appsettings.json ships AccessPassword:"" which is NOT null,
+// so `config ?? env` would ignore QQREBORN_ACCESS_PASSWORD / QQReborn__AccessPassword
+// and leave the gateway open (or fail to apply the steward password).
+static string FirstNonEmpty(params string?[] values)
+{
+    foreach (var value in values)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            return value.Trim();
+    }
+    return "";
+}
+
+var accessPassword = FirstNonEmpty(
+    Environment.GetEnvironmentVariable("QQREBORN_ACCESS_PASSWORD"),
+    Environment.GetEnvironmentVariable("QQReborn__AccessPassword"),
+    builder.Configuration["QQReborn:AccessPassword"]);
 
 var hub = app.Services.GetRequiredService<SessionHub>();
 
@@ -165,7 +177,7 @@ var mode = Environment.GetEnvironmentVariable("QQREBORN_MODE")
 
 app.MapGet("/", () =>
     $"QQReborn gateway mode={mode} backend={hub.DefaultBackendId}. " +
-    "ws://<host>:8765/ws — local NapCat + optional SakuraFrp (docs/USER-GATEWAY-SAKURAFRP.md)");
+    "ws://<host>:8765/ws — local NapCat + optional Frp (docs/USER-GATEWAY-OPENFRP.md)");
 
 app.MapGet("/backend", () => Results.Json(new
 {
@@ -203,7 +215,7 @@ Console.WriteLine("QQReborn server on http://0.0.0.0:8765  (ws://localhost:8765/
 Console.WriteLine($"  mode={mode}  backend={hub.DefaultBackendId}");
 Console.WriteLine($"  accessPassword={(string.IsNullOrEmpty(accessPassword) ? "open (dev)" : "required")}");
 Console.WriteLine("  localGateway: NapCat must be logged in on THIS machine (HTTP/WS localhost only).");
-Console.WriteLine("  go outside: SakuraFrp map 127.0.0.1:8765 only — docs/USER-GATEWAY-SAKURAFRP.md");
+Console.WriteLine("  go outside: Frp map 127.0.0.1:8765 only — docs/USER-GATEWAY-OPENFRP.md");
 Console.WriteLine("  start script: tools/start-user-gateway.ps1");
 app.Run();
 
@@ -390,7 +402,9 @@ async Task<string?> HandleAsync(string text, ClientConnection conn, SessionHub h
                 break;
             }
             case "markConversationRead":
-                data = sessions.MarkConversationRead(S(req, "conversationId") ?? "");
+                data = sessions.MarkConversationRead(
+                    S(req, "conversationId") ?? "",
+                    S(req, "lastReadAt"));
                 break;
             case "groupRename":
                 (data, error) = await sessions.GroupRenameAsync(S(req, "conversationId") ?? "", S(req, "name") ?? "");

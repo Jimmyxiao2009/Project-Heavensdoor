@@ -77,6 +77,13 @@ namespace QQReborn.App.ViewModels
             _detached = false;
             _chat.MessageReceived -= OnMessageReceived;
             _chat.MessageReceived += OnMessageReceived;
+            if (_chat is RemoteChatService remoteFlags)
+            {
+                remoteFlags.ConversationFlagsChanged -= OnConversationFlagsChanged;
+                remoteFlags.ConversationFlagsChanged += OnConversationFlagsChanged;
+                remoteFlags.ConversationRead -= OnConversationRead;
+                remoteFlags.ConversationRead += OnConversationRead;
+            }
             if (_chat is RemoteChatService remote)
             {
                 remote.Reconnected -= OnReconnected;
@@ -127,6 +134,13 @@ namespace QQReborn.App.ViewModels
             _detached = false;
             _chat.MessageReceived -= OnMessageReceived;
             _chat.MessageReceived += OnMessageReceived;
+            if (_chat is RemoteChatService remoteFlags)
+            {
+                remoteFlags.ConversationFlagsChanged -= OnConversationFlagsChanged;
+                remoteFlags.ConversationFlagsChanged += OnConversationFlagsChanged;
+                remoteFlags.ConversationRead -= OnConversationRead;
+                remoteFlags.ConversationRead += OnConversationRead;
+            }
             if (_chat is RemoteChatService remote)
             {
                 remote.Reconnected -= OnReconnected;
@@ -138,7 +152,12 @@ namespace QQReborn.App.ViewModels
         {
             _detached = true;
             _chat.MessageReceived -= OnMessageReceived;
-            if (_chat is RemoteChatService remote) remote.Reconnected -= OnReconnected;
+            if (_chat is RemoteChatService remote)
+            {
+                remote.Reconnected -= OnReconnected;
+                remote.ConversationFlagsChanged -= OnConversationFlagsChanged;
+                remote.ConversationRead -= OnConversationRead;
+            }
         }
 
         private async void OnMessageReceived(object sender, ChatMessage msg)
@@ -196,6 +215,32 @@ namespace QQReborn.App.ViewModels
         /// anything that arrived while disconnected; failures are swallowed so a still-flaky
         /// connection doesn't crash the app -- the next successful reconnect (or the next
         /// pull-to-refresh, if one exists) will catch up.</summary>
+        private void OnConversationRead(object sender, ConversationReadInfo info)
+        {
+            if (_detached || info == null || string.IsNullOrEmpty(info.ConversationId)) return;
+            UnreadBadgeStore.Clear(info.ConversationId);
+            var conv = Conversations.FirstOrDefault(c => c.Id == info.ConversationId);
+            if (conv == null) return;
+            conv.Unread = 0;
+            if (!string.IsNullOrEmpty(info.LastReadAt))
+                conv.LastReadAt = info.LastReadAt;
+        }
+
+        private void OnConversationFlagsChanged(object sender, ConversationFlagsChangedInfo info)
+        {
+            if (_detached || info == null || string.IsNullOrEmpty(info.ConversationId)) return;
+            var conv = Conversations.FirstOrDefault(c => c.Id == info.ConversationId);
+            if (conv == null) return;
+            conv.IsPinned = info.IsPinned;
+            conv.IsMuted = info.IsMuted;
+            if (info.IsMuted)
+            {
+                conv.Unread = 0;
+                UnreadBadgeStore.Clear(info.ConversationId);
+            }
+            ResortConversations();
+        }
+
         private async void OnReconnected(object sender, System.EventArgs e)
         {
             await RefreshConversationsAsync();

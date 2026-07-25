@@ -45,6 +45,10 @@ namespace QQReborn.App
             if (UseRemoteBackend)
             {
                 ChatService.MessageReceived += OnMessageReceivedForToast;
+                // Connect as soon as the process starts so unread/push work even before
+                // the user lands on MainPage and LoadAsync runs.
+                if (ChatService is RemoteChatService autoRemote)
+                    autoRemote.StartAutoConnect();
             }
         }
 
@@ -76,34 +80,68 @@ namespace QQReborn.App
                 case Models.MessageContentType.FileMsg: preview = "[文件]"; break;
             }
 
+            bool isGroupPush = !string.IsNullOrEmpty(msg.ConversationId)
+                && (msg.ConversationId.StartsWith("g", StringComparison.OrdinalIgnoreCase)
+                    || msg.ConversationId.StartsWith("G", StringComparison.Ordinal));
+
+            // Defaults from the wire payload (server now fills conversation* for groups).
             string title = !string.IsNullOrEmpty(msg.ConversationTitle) ? msg.ConversationTitle : msg.SenderName;
             string content = preview;
-            string avatar = !string.IsNullOrEmpty(msg.ConversationAvatarPath) ? msg.ConversationAvatarPath : msg.SenderAvatarPath;
-            bool isGroupPush = !string.IsNullOrEmpty(msg.ConversationId)
-                && msg.ConversationId.StartsWith("g", StringComparison.OrdinalIgnoreCase);
+            string avatar = !string.IsNullOrEmpty(msg.ConversationAvatarPath)
+                ? msg.ConversationAvatarPath
+                : msg.SenderAvatarPath;
+
+            // Always format group toasts as: group name + "成员: 内容" + group avatar.
+            if (isGroupPush)
+            {
+                content = string.IsNullOrEmpty(msg.SenderName) ? preview : (msg.SenderName + ": " + preview);
+                // Synthetic group avatar if server/cache still empty (qlogo CDN).
+                if (string.IsNullOrEmpty(avatar) && msg.ConversationId.Length > 1)
+                {
+                    var peer = msg.ConversationId.Substring(1);
+                    long g;
+                    if (long.TryParse(peer, out g) && g > 0)
+                        avatar = "https://p.qlogo.cn/gh/" + g.ToString() + "/" + g.ToString() + "/100";
+                }
+                if (string.IsNullOrEmpty(title) || title == msg.SenderName)
+                {
+                    // Prefer peer uin as last-resort title over a misleading member name.
+                    if (msg.ConversationId.Length > 1) title = msg.ConversationId.Substring(1);
+                }
+            }
 
             try
             {
-                // Use the app's local conversation cache only for title/avatar formatting.
-                // Do not trust its IsMuted for toast emission.
+                // Local conversation cache can fill title/avatar when the push arrived
+                // before Populate finished, or for older gateways without conversation*.
                 var convs = await ConversationCache.LoadAsync();
                 foreach (var c in convs)
                 {
-                    if (c.Id != msg.ConversationId) continue;
-                    if (c.Kind == Models.ConversationKind.Group || isGroupPush)
+                    if (c == null || c.Id != msg.ConversationId) continue;
+                    var group = c.Kind == Models.ConversationKind.Group || isGroupPush;
+                    if (group)
                     {
                         if (!string.IsNullOrEmpty(c.Title)) title = c.Title;
-                        content = msg.SenderName + ": " + preview;
+                        content = string.IsNullOrEmpty(msg.SenderName) ? preview : (msg.SenderName + ": " + preview);
                         if (!string.IsNullOrEmpty(c.AvatarPath)) avatar = c.AvatarPath;
                     }
-                    else if (!string.IsNullOrEmpty(c.Title))
+                    else
                     {
-                        title = c.Title;
+                        if (!string.IsNullOrEmpty(c.Title)) title = c.Title;
+                        if (!string.IsNullOrEmpty(c.AvatarPath)) avatar = c.AvatarPath;
                     }
                     break;
                 }
             }
             catch { }
+
+            // Friend fallback: if still no avatar, use sender avatar / qlogo.
+            if (!isGroupPush && string.IsNullOrEmpty(avatar))
+            {
+                avatar = msg.SenderAvatarPath;
+                if (string.IsNullOrEmpty(avatar) && msg.SenderUin > 0)
+                    avatar = "https://q1.qlogo.cn/g?b=qq&nk=" + msg.SenderUin.ToString() + "&s=100";
+            }
 
             ToastHelper.ShowMessageToast(title, msg.ConversationId, content, avatar, false);
 

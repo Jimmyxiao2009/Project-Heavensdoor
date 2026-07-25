@@ -138,7 +138,7 @@
                                Foreground="{StaticResource MetroSecondaryTextBrush}" />
                 </Grid>
 
-                <!-- 置顶 / 免打扰（与手机 QQ 会话设置同款语义；本地持久化，不跟腾讯同步） -->
+                <!-- 置顶 / 免打扰：经网关持久化，多台 Shell 实时同步；官方桌面/手机 QQ 云同步暂不可用 -->
                 <Grid Background="{StaticResource MetroPanelBrush}" Padding="14,10" Margin="0,0,0,1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
