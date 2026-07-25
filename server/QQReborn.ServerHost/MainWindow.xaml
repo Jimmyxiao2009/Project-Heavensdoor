@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="QQ Reborn 管家"
-        Width="920" Height="640"
-        MinWidth="720" MinHeight="480"
+        Width="940" Height="720"
+        MinWidth="740" MinHeight="540"
         Background="{StaticResource Bg}"
         WindowStartupLocation="CenterScreen"
         Closing="Window_Closing">
@@ -58,6 +58,30 @@
           </StackPanel>
           <TextBlock x:Name="NapCatUrl" Text="http://127.0.0.1:3000/get_login_info" Foreground="{StaticResource Accent}" FontSize="12" Margin="0,8,0,0"
                      Cursor="Hand" MouseLeftButtonUp="NapCatUrl_Click" ToolTip="点击复制"/>
+
+          <TextBlock Text="登录账号" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,12,0,4"/>
+          <ComboBox x:Name="AccountCombo"
+                    IsEditable="False"
+                    Padding="6,4"
+                    DisplayMemberPath="Display"
+                    SelectionChanged="AccountCombo_SelectionChanged"
+                    ToolTip="选择要用 NapCat 快速登录的 QQ 号"/>
+
+          <Grid Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <TextBlock Text="自定义 QQ 号" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,4"/>
+              <TextBox x:Name="CustomUinBox" Padding="6,4"
+                       ToolTip="输入其它 QQ 号后点「加入列表」"
+                       PreviewKeyDown="CustomUinBox_PreviewKeyDown"/>
+            </StackPanel>
+            <Button Grid.Column="1" Content="加入列表" Click="AddAccount_Click"
+                    VerticalAlignment="Bottom" Margin="8,0,0,0" Padding="10,6"
+                    Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0" Cursor="Hand"/>
+          </Grid>
         </StackPanel>
       </Border>
 
@@ -73,9 +97,16 @@
         <Button x:Name="StopAllBtn" Content="■  停止网关" Click="StopAll_Click"
                 Background="#FF333333" Foreground="White" BorderThickness="0"
                 Padding="12,10" Margin="0,0,0,6" FontSize="14" Cursor="Hand"/>
+        <Button x:Name="StartNapCatBtn" Content="启动 NapCat" Click="StartNapCat_Click"
+                Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
+                Padding="12,8" Margin="0,0,0,6" FontSize="13" Cursor="Hand"/>
         <Button Content="检测 NapCat" Click="CheckNapCat_Click"
                 Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
                 Padding="12,8" Margin="0,0,0,6" FontSize="13" Cursor="Hand"/>
+        <Button Content="写入 OneBot 配置" Click="EnsureConfig_Click"
+                Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
+                Padding="12,8" Margin="0,0,0,6" FontSize="13" Cursor="Hand"
+                ToolTip="确保 HTTP 3000 / 事件 WS 3001（仅本机）"/>
         <Button Content="复制访问地址" Click="CopyAddress_Click"
                 Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
                 Padding="12,8" FontSize="13" Cursor="Hand"/>
@@ -99,6 +130,6 @@
 
     <!-- Footer tips -->
     <TextBlock Grid.Row="3" Margin="0,10,0,0" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"
-               Text="先启动 NTQQ + NapCat 并登录，再启动网关。出门用 SakuraFrp 只映射 8765，不要映射 3000/3001。手机只填地址、端口、访问密码。"/>
+               Text="先选登录账号再启动 NapCat。默认大号 1913695019。首次会同步到 %LocalAppData%\QQReborn\NapCat 并写入 OneBot 3000/3001。出门只映射 8765。"/>
   </Grid>
 </Window>

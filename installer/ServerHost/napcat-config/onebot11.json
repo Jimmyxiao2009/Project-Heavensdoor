@@ -1,0 +1,45 @@
+{
+  "parseMultMsg": false,
+  "musicSignUrl": "",
+  "enableLocalFile2Url": false,
+  "network": {
+    "httpClients": [],
+    "websocketClients": [],
+    "httpServers": [
+      {
+        "enable": true,
+        "enableWebsocket": true,
+        "enableCors": true,
+        "messagePostFormat": "array",
+        "name": "httpServer",
+        "port": 3000,
+        "token": "",
+        "host": "127.0.0.1",
+        "debug": false
+      }
+    ],
+    "httpSseServers": [],
+    "websocketServers": [
+      {
+        "enable": true,
+        "enableForcePushEvent": true,
+        "heartInterval": 30000,
+        "reportSelfMessage": true,
+        "messagePostFormat": "array",
+        "name": "wsServer",
+        "port": 3001,
+        "token": "",
+        "host": "127.0.0.1",
+        "debug": false
+      }
+    ],
+    "plugins": []
+  },
+  "imageDownloadProxy": "",
+  "timeout": {
+    "baseTimeout": 10000,
+    "uploadSpeedKBps": 256,
+    "downloadSpeedKBps": 256,
+    "maxTimeout": 1800000
+  }
+}

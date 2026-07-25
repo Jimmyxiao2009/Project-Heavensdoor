@@ -7,14 +7,14 @@
 
   <Package Name="QQ Reborn 管家"
            Manufacturer="QQ Reborn"
-           Version="0.1.0.2"
+           Version="0.1.0.4"
            UpgradeCode="8F2B6A41-3D2E-4C7A-9B1F-2E5C7A0D9B12"
            Scope="perMachine"
            Language="1033"
            InstallerVersion="500">
 
     <SummaryInformation
-        Description="QQ Reborn 本机网关管家（NapCat + RealServer）"
+        Description="QQ Reborn 本机网关管家（内置 RealServer + NapCat Shell / OneBot 配置）"
         Manufacturer="QQ Reborn" />
 
     <MajorUpgrade
@@ -27,13 +27,13 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/Jimmyxiao2009/Project-Heavensdoor" />
     <Property Id="ARPHELPLINK" Value="https://github.com/Jimmyxiao2009/Project-Heavensdoor#readme" />
-    <Property Id="ARPCOMMENTS" Value="Lumia Shell 用的本机 QQ 网关管家。需先安装并登录 NTQQ + NapCat。" />
+    <Property Id="ARPCOMMENTS" Value="Lumia Shell 用的本机 QQ 网关管家。含 RealServer；可捆绑 NapCat Shell（OneBot 3000/3001）。需已安装 NTQQ。" />
 
     <Icon Id="AppIcon" SourceFile="!(bindpath.Publish)\QQReborn.ServerHost.exe" />
 
     <Feature Id="Main"
              Title="QQ Reborn 管家"
-             Description="安装管家程序与内置 RealServer 网关"
+             Description="安装管家、RealServer 网关，以及可选的 NapCat Shell（OneBot HTTP 3000 / 事件 WS 3001）"
              Level="1"
              ConfigurableDirectory="INSTALLFOLDER"
              AllowAbsent="no">
@@ -52,7 +52,7 @@
 
     <StandardDirectory Id="DesktopFolder" />
 
-    <!-- Harvest publish\ServerHost (exe + RealServer\**), skip symbols -->
+    <!-- Harvest publish\ServerHost (exe + RealServer\** + NapCat\**), skip symbols -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
       <Files Include="!(bindpath.Publish)\**">
         <Exclude Files="**\*.pdb" />

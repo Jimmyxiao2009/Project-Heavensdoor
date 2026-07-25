@@ -11,18 +11,30 @@ namespace QQReborn.ServerHost;
 public sealed class ServerProcessManager : IDisposable
 {
     private Process? _realServer;
+    private Process? _napCatBoot;
     private readonly object _gate = new();
+    private readonly NapCatLauncher _napCat;
 
     public string RepoRoot { get; }
     public int RealServerPort { get; set; } = 8765;
 
     /// <summary>Always napcat for the product steward.</summary>
     public string Backend { get; set; } = "napcat";
-    public string AccessPassword { get; set; }
+    public string AccessPassword { get; set; } = "";
 
     public string NapCatHttp { get; set; } = "http://127.0.0.1:3000";
     public string NapCatWs { get; set; } = "ws://127.0.0.1:3001";
     public string NapCatToken { get; set; } = "";
+    /// <summary>Quick-login UIN for NapCat; empty = QR / existing session. Default = 大号.</summary>
+    public string NapCatUin { get; set; } = AccountOption.Main.Uin;
+
+    /// <summary>Account list for the steward picker (persisted).</summary>
+    public List<AccountOption> Accounts { get; set; } = AccountOption.Defaults.ToList();
+
+    public string NapCatUinDisplay =>
+        string.IsNullOrWhiteSpace(NapCatUin)
+            ? "扫码登录（不指定号）"
+            : (Accounts.FirstOrDefault(a => a.Uin == NapCatUin)?.Display ?? NapCatUin);
 
     public bool RealServerRunning
     {
@@ -34,7 +46,8 @@ public sealed class ServerProcessManager : IDisposable
     public ServerProcessManager()
     {
         RepoRoot = FindRepoRoot();
-        AccessPassword = LoadAccessPassword();
+        _napCat = new NapCatLauncher(Append);
+        LoadSettings();
     }
 
     public async Task StartRealServerAsync()
@@ -107,9 +120,88 @@ public sealed class ServerProcessManager : IDisposable
 
     public async Task StartAllAsync()
     {
-        SaveAccessPassword(AccessPassword);
-        await CheckNapCatAsync();
+        SaveSettings();
+        if (!await CheckNapCatAsync())
+        {
+            Append("NapCat 未在线，尝试自动启动…");
+            await StartNapCatAsync(waitForOnline: true);
+        }
         await StartRealServerAsync();
+    }
+
+    /// <summary>
+    /// Stage bundled NapCat (if needed), write OneBot 3000/3001 config, and launch.
+    /// </summary>
+    public async Task<bool> StartNapCatAsync(bool waitForOnline = true)
+    {
+        SaveSettings();
+        if (await CheckNapCatAsync())
+        {
+            Append("NapCat 已在线，跳过启动。");
+            return true;
+        }
+
+        string shell;
+        try
+        {
+            shell = _napCat.EnsureRuntimeShell();
+        }
+        catch (Exception ex)
+        {
+            Append("无法准备 NapCat: " + ex.Message);
+            throw;
+        }
+
+        try
+        {
+            var p = _napCat.Start(shell, string.IsNullOrWhiteSpace(NapCatUin) ? null : NapCatUin);
+            lock (_gate) _napCatBoot = p;
+        }
+        catch (Exception ex)
+        {
+            Append("启动 NapCat 失败: " + ex.Message);
+            throw;
+        }
+
+        if (!waitForOnline) return false;
+
+        // Boot injects into QQ; OneBot may take a while (login / QR).
+        for (var i = 0; i < 90; i++)
+        {
+            await Task.Delay(1000);
+            if (await CheckNapCatAsync())
+                return true;
+            if (i is 15 or 30 or 60)
+                Append($"仍在等待 NapCat OneBot… ({i}s) 若需扫码请在弹出的 QQ 窗口完成登录。");
+        }
+
+        Append("NapCat 在 90s 内未响应 OneBot HTTP；请确认 QQ 已登录后点「检测 NapCat」。");
+        return false;
+    }
+
+    public void EnsureNapCatConfigOnly()
+    {
+        try
+        {
+            var shell = _napCat.EnsureRuntimeShell();
+            _napCat.EnsureOneBotConfig(shell);
+            Append($"NapCat 配置目录: {Path.Combine(shell, "config")}");
+        }
+        catch (Exception ex)
+        {
+            Append("写入 NapCat 配置失败: " + ex.Message);
+            throw;
+        }
+    }
+
+    public string DescribeNapCatPaths()
+    {
+        var src = _napCat.FindShellSource();
+        var runtime = _napCat.FindShellRuntime();
+        var qq = NapCatLauncher.FindNtqqExe();
+        return $"NapCat 源: {src ?? "(未找到)"}{Environment.NewLine}" +
+               $"NapCat 运行: {runtime ?? NapCatLauncher.RuntimeRoot}{Environment.NewLine}" +
+               $"NTQQ: {qq ?? "(未找到)"}";
     }
 
     public async Task<bool> CheckNapCatAsync()
@@ -119,7 +211,8 @@ public sealed class ServerProcessManager : IDisposable
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
             if (!string.IsNullOrWhiteSpace(NapCatToken))
-                http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", NapCatToken);
+                http.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", NapCatToken);
             using var response = await http.PostAsync(url, new StringContent("{}", Encoding.UTF8, "application/json"));
             var body = await response.Content.ReadAsStringAsync();
             if (!response.IsSuccessStatusCode)
@@ -130,7 +223,11 @@ public sealed class ServerProcessManager : IDisposable
             using var doc = JsonDocument.Parse(body);
             var userId = doc.RootElement.TryGetProperty("data", out var data)
                 && data.TryGetProperty("user_id", out var uid) ? uid.ToString() : "未知账号";
-            Append($"NapCat 在线: QQ {userId} ({NapCatHttp})");
+            var nick = doc.RootElement.TryGetProperty("data", out var d2)
+                && d2.TryGetProperty("nickname", out var nn) ? nn.GetString() : null;
+            Append(string.IsNullOrWhiteSpace(nick)
+                ? $"NapCat 在线: QQ {userId} ({NapCatHttp})"
+                : $"NapCat 在线: QQ {userId} ({nick}) ({NapCatHttp})");
             return true;
         }
         catch (Exception ex)
@@ -143,6 +240,7 @@ public sealed class ServerProcessManager : IDisposable
     public void StopAll()
     {
         StopOne(ref _realServer, "RealServer");
+        // Do not kill NapCat/QQ by default — user may still need the session.
     }
 
     private Process StartCaptured(ProcessStartInfo psi)
@@ -225,34 +323,88 @@ public sealed class ServerProcessManager : IDisposable
         return Directory.GetCurrentDirectory();
     }
 
-    public void Dispose() => StopAll();
+    public void Dispose()
+    {
+        StopAll();
+        lock (_gate)
+        {
+            try { _napCatBoot?.Dispose(); } catch { }
+            _napCatBoot = null;
+        }
+    }
 
-    private static string AccessPasswordPath => Path.Combine(
+    private static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "QQReborn", "gateway.json");
 
-    private static string LoadAccessPassword()
+    private void LoadSettings()
     {
+        AccessPassword = Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+        NapCatUin = AccountOption.Main.Uin;
+        Accounts = AccountOption.Defaults.Select(a => new AccountOption { Uin = a.Uin, Label = a.Label }).ToList();
         try
         {
-            if (File.Exists(AccessPasswordPath))
+            if (!File.Exists(SettingsPath)) return;
+            using var doc = JsonDocument.Parse(File.ReadAllText(SettingsPath));
+            var root = doc.RootElement;
+            if (root.TryGetProperty("accessPassword", out var ap) && !string.IsNullOrWhiteSpace(ap.GetString()))
+                AccessPassword = ap.GetString()!;
+            if (root.TryGetProperty("napCatHttp", out var h) && !string.IsNullOrWhiteSpace(h.GetString()))
+                NapCatHttp = h.GetString()!;
+            if (root.TryGetProperty("napCatWs", out var w) && !string.IsNullOrWhiteSpace(w.GetString()))
+                NapCatWs = w.GetString()!;
+            if (root.TryGetProperty("napCatToken", out var t) && t.GetString() is { } tok)
+                NapCatToken = tok;
+            if (root.TryGetProperty("napCatUin", out var u) && u.ValueKind == JsonValueKind.String)
+                NapCatUin = u.GetString() ?? AccountOption.Main.Uin;
+
+            if (root.TryGetProperty("accounts", out var accArr) && accArr.ValueKind == JsonValueKind.Array)
             {
-                var doc = JsonDocument.Parse(File.ReadAllText(AccessPasswordPath));
-                var value = doc.RootElement.GetProperty("accessPassword").GetString();
-                if (!string.IsNullOrWhiteSpace(value)) return value;
+                var list = new List<AccountOption>();
+                foreach (var el in accArr.EnumerateArray())
+                {
+                    var uin = el.TryGetProperty("uin", out var uu) ? uu.GetString() ?? "" : "";
+                    var label = el.TryGetProperty("label", out var ll) ? ll.GetString() ?? "" : "";
+                    if (list.Any(x => x.Uin == uin && x.Label == label)) continue;
+                    list.Add(new AccountOption { Uin = uin, Label = label });
+                }
+                // Ensure defaults present
+                foreach (var d in AccountOption.Defaults)
+                {
+                    if (!list.Any(x => x.Uin == d.Uin))
+                        list.Insert(0, new AccountOption { Uin = d.Uin, Label = d.Label });
+                }
+                // Main first
+                list = list
+                    .OrderBy(a => a.Uin == AccountOption.Main.Uin ? 0 : string.IsNullOrEmpty(a.Uin) ? 2 : 1)
+                    .ThenBy(a => a.Uin)
+                    .ToList();
+                if (list.Count > 0) Accounts = list;
             }
+
+            // Migrate old default empty → main
+            if (string.IsNullOrWhiteSpace(NapCatUin) && root.TryGetProperty("napCatUin", out _) == false)
+                NapCatUin = AccountOption.Main.Uin;
         }
-        catch { }
-        return Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+        catch { /* keep defaults */ }
     }
 
-    private static void SaveAccessPassword(string value)
+    public void SaveSettings()
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(AccessPasswordPath)!);
-            File.WriteAllText(AccessPasswordPath, JsonSerializer.Serialize(new { accessPassword = value }));
+            Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+            var payload = new
+            {
+                accessPassword = AccessPassword ?? "",
+                napCatHttp = NapCatHttp ?? "http://127.0.0.1:3000",
+                napCatWs = NapCatWs ?? "ws://127.0.0.1:3001",
+                napCatToken = NapCatToken ?? "",
+                napCatUin = NapCatUin ?? AccountOption.Main.Uin,
+                accounts = Accounts.Select(a => new { uin = a.Uin, label = a.Label }).ToArray(),
+            };
+            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { }
+        catch { /* ignore */ }
     }
 }

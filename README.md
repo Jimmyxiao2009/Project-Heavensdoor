@@ -107,18 +107,22 @@ powershell -ExecutionPolicy Bypass -File tools\start-server-host.ps1 -Publish
 
 ### 服务端 MSI 安装包
 
-需已安装 WiX 5 CLI：
+需已安装 WiX 5 CLI；建议本机已有 **NapCat.Shell**（构建时打进 MSI）：
 
 ```powershell
 dotnet tool install -g wix
-powershell -ExecutionPolicy Bypass -File tools\build-server-msi.ps1
+# 可选：指定 NapCat Shell 路径
+$env:NAPCAT_SHELL = "D:\NapCat.Shell"
+powershell -ExecutionPolicy Bypass -File tools\build-server-msi.ps1 -Version 0.1.0.4
 ```
 
 产物：
 
 ```
-publish\msi\QQReborn.ServerHost-0.1.0.2-x64.msi
+publish\msi\QQReborn.ServerHost-0.1.0.4-x64.msi
 ```
+
+包内默认 OneBot：`127.0.0.1:3000`（HTTP）/ `3001`（事件 WS）。管家可选登录账号（默认大号），可「启动 NapCat」并自动写入配置。
 
 安装 / 静默安装 / 卸载：
 

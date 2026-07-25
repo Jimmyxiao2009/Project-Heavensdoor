@@ -18,8 +18,13 @@ dotnet build $proj -c Release -v q
 if ($LASTEXITCODE -ne 0) { throw "build failed" }
 
 if ($Publish) {
+    # Full publish + optional NapCat staging via MSI script (Skip MSI build with env).
+    Write-Host "Publishing via build-server-msi layout (Skip MSI)…"
+    # Reuse MSI publish path without rebuilding MSI: call publish pieces only.
     $out = Join-Path $root "publish\ServerHost"
     Write-Host "Publishing self-contained to $out ..."
+    if (Test-Path $out) { Remove-Item $out -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $out | Out-Null
     dotnet publish $proj -c Release -r win-x64 --self-contained true -o $out `
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -v q
     if ($LASTEXITCODE -ne 0) { throw "publish failed" }
@@ -29,6 +34,11 @@ if ($Publish) {
     # Self-contained so installed/portable copies don't require a shared .NET runtime.
     dotnet publish (Join-Path $root "server\QQReborn.RealServer\QQReborn.RealServer.csproj") `
         -c Release -r win-x64 --self-contained true -o $rsOut -v q
+    if ($LASTEXITCODE -ne 0) { throw "RealServer publish failed" }
+
+    # Stage NapCat + OneBot config if available (no MSI rebuild).
+    Write-Host "Staging NapCat (if found)…"
+    & (Join-Path $root "tools\build-server-msi.ps1") -SkipPublish -SkipMsi -Version 0.1.0.3
 
     Write-Host ""
     Write-Host "Done. Run: $out\QQReborn.ServerHost.exe"
