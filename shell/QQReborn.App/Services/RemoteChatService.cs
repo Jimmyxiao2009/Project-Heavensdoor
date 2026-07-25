@@ -112,6 +112,8 @@ namespace QQReborn.App.Services
         private int _reconnecting;
         private readonly SemaphoreSlim _connLock = new SemaphoreSlim(1, 1);
         private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
+        // Protects _ws/_writer/_connected swaps against socket-thread Closed callbacks.
+        private readonly object _gate = new object();
         // Carry the data as a STRING across threads — Windows.Data.Json objects have
         // thread affinity and throw RPC_E_WRONG_THREAD if created on the WS receive
         // thread and read on the UI thread. Re-parse on the consumer's thread.
@@ -147,23 +149,66 @@ namespace QQReborn.App.Services
                 // Dispose any stale socket/writer from a previous (dropped) connection so we
                 // don't leak native handles or stack duplicate event subscriptions.
                 CleanupSocket();
-                _ws = new MessageWebSocket();
-                _ws.Control.MessageType = SocketMessageType.Utf8;
-                _ws.MessageReceived += OnMessage;
-                _ws.Closed += OnClosed;
-                var connectTask = _ws.ConnectAsync(new Uri(BuildServerUrl())).AsTask();
-                var completed = await Task.WhenAny(connectTask, Task.Delay(TimeSpan.FromSeconds(10)));
+                var ws = new MessageWebSocket();
+                ws.Control.MessageType = SocketMessageType.Utf8;
+                ws.MessageReceived += OnMessage;
+                ws.Closed += OnClosed;
+                _ws = ws;
+
+                var url = BuildServerUrl();
+                Task connectTask;
+                try
+                {
+                    connectTask = ws.ConnectAsync(new Uri(url)).AsTask();
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception(FormatSocketError("无法开始连接 " + url, ex), ex);
+                }
+
+                var completed = await Task.WhenAny(connectTask, Task.Delay(TimeSpan.FromSeconds(12)));
                 if (completed != connectTask)
-                    throw new TimeoutException("连接 RealServer 超时");
-                await connectTask;
-                _writer = new DataWriter(_ws.OutputStream);
+                {
+                    // Abort the in-flight connect; never leave a half-open MessageWebSocket.
+                    CleanupSocket();
+                    // Observe the abandoned task so it doesn't surface as unhandled later.
+                    var ignored = connectTask.ContinueWith(t =>
+                    {
+                        try { var _ = t.Exception; } catch { }
+                    }, TaskContinuationOptions.OnlyOnFaulted);
+                    throw new TimeoutException("连接网关超时（" + url + "）。请确认管家已启动且手机能访问该地址/端口。");
+                }
+
+                try
+                {
+                    await connectTask;
+                }
+                catch (Exception ex)
+                {
+                    CleanupSocket();
+                    throw new Exception(FormatSocketError("连接网关失败（" + url + "）", ex), ex);
+                }
+
+                _writer = new DataWriter(ws.OutputStream);
+                // Auth while still holding _connLock so no other caller races mid-handshake.
+                try
+                {
+                    await AuthenticateAsync();
+                }
+                catch (Exception ex)
+                {
+                    CleanupSocket();
+                    _connected = false;
+                    throw new Exception(FormatSocketError("网关鉴权失败", ex), ex);
+                }
+
                 _connected = true;
-                await AuthenticateAsync();
                 _everConnected = true;
             }
             catch
             {
-                CleanupSocket();
+                // Ensure half-open state is never left as "_connected == true".
+                if (!_connected) CleanupSocket();
                 throw;
             }
             finally { _connLock.Release(); }
@@ -178,46 +223,100 @@ namespace QQReborn.App.Services
                 ["type"] = JsonValue.CreateStringValue("auth"),
                 ["password"] = JsonValue.CreateStringValue(ReadAccessPassword())
             };
-            var tcs = new TaskCompletionSource<string>();
+            // RunContinuationsAsynchronously avoids completing on the socket thread if a
+            // waiter is already scheduled there (reduces re-entrancy on MessageWebSocket).
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             _pending[id] = tcs;
             await _writeLock.WaitAsync();
             try
             {
-                if (_writer == null) throw new InvalidOperationException("连接已关闭");
-                _writer.WriteString(req.Stringify());
-                await _writer.StoreAsync();
+                var writer = _writer;
+                if (writer == null) throw new InvalidOperationException("连接已关闭");
+                writer.WriteString(req.Stringify());
+                await writer.StoreAsync();
             }
-            catch
+            catch (Exception ex)
             {
                 _pending.TryRemove(id, out _);
-                HandleConnectionDead();
-                throw;
+                // Do not call HandleConnectionDead while _connLock is held by EnsureConnected
+                // (deadlock). Caller tears the socket down.
+                throw new Exception(FormatSocketError("发送鉴权失败", ex), ex);
             }
             finally { _writeLock.Release(); }
 
             using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
-            using (cts.Token.Register(() => { if (_pending.TryRemove(id, out var t)) t.TrySetException(new TimeoutException("网关鉴权超时")); }))
+            using (cts.Token.Register(() =>
+            {
+                if (_pending.TryRemove(id, out var t))
+                    t.TrySetException(new TimeoutException("网关鉴权超时。请检查访问密码是否与管家一致。"));
+            }))
             {
                 await tcs.Task;
             }
         }
 
-        /// <summary>Detach handlers and dispose the current socket/writer. Caller must hold _connLock
-        /// (or be in a state where no other connect is in flight).</summary>
+        /// <summary>Detach handlers and dispose the current socket/writer.
+        /// Always dispose the DataWriter before the MessageWebSocket — skipping that
+        /// (e.g. only nulling _writer) causes COMException 0x8000000E E_ILLEGAL_METHOD_CALL
+        /// on the next connect ("A method was called at an unexpected time").</summary>
         private void CleanupSocket()
         {
-            var ws = _ws;
-            var writer = _writer;
-            _ws = null;
-            _writer = null;
+            MessageWebSocket ws;
+            DataWriter writer;
+            lock (_gate)
+            {
+                ws = _ws;
+                writer = _writer;
+                _ws = null;
+                _writer = null;
+                _connected = false;
+            }
             if (ws != null)
             {
-                ws.MessageReceived -= OnMessage;
-                ws.Closed -= OnClosed;
+                try { ws.MessageReceived -= OnMessage; } catch { }
+                try { ws.Closed -= OnClosed; } catch { }
             }
+            // Prefer DetachStream so disposing the writer does not close the socket stream
+            // twice; if Detach fails, still Dispose both.
             try { writer?.DetachStream(); } catch { }
             try { writer?.Dispose(); } catch { }
             try { ws?.Dispose(); } catch { }
+        }
+
+        /// <summary>User-facing message for WinRT socket / COM failures (esp. 0x8000000E).</summary>
+        internal static string FormatSocketError(string prefix, Exception ex)
+        {
+            if (ex == null) return prefix;
+            // Unwrap one level of AggregateException.
+            var agg = ex as AggregateException;
+            if (agg != null && agg.InnerExceptions != null && agg.InnerExceptions.Count > 0)
+                ex = agg.InnerExceptions[0];
+            if (ex.InnerException != null
+                && (string.IsNullOrEmpty(ex.Message) || ex.Message.IndexOf("0x", StringComparison.OrdinalIgnoreCase) >= 0))
+                ex = ex.InnerException;
+
+            var hr = ex.HResult;
+            var msg = ex.Message ?? "";
+            // E_ILLEGAL_METHOD_CALL — classic MessageWebSocket reuse / dispose race.
+            if (hr == unchecked((int)0x8000000E)
+                || msg.IndexOf("0x8000000E", StringComparison.OrdinalIgnoreCase) >= 0
+                || msg.IndexOf("unexpected time", StringComparison.OrdinalIgnoreCase) >= 0
+                || msg.IndexOf("意外的时间", StringComparison.Ordinal) >= 0)
+            {
+                return prefix + "：连接状态异常（0x8000000E）。请返回设置确认服务器地址/端口/访问密码后重试，或重启 App。";
+            }
+            // WSAECONNREFUSED / connection refused style
+            if (hr == unchecked((int)0x8007274D) || hr == unchecked((int)0x8007274C)
+                || msg.IndexOf("拒绝", StringComparison.Ordinal) >= 0
+                || msg.IndexOf("actively refused", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return prefix + "：无法连上电脑网关。请确认管家已「启动网关」，且地址/端口正确。";
+            }
+            if (msg.IndexOf("访问密码", StringComparison.Ordinal) >= 0)
+                return msg;
+            if (!string.IsNullOrWhiteSpace(msg))
+                return prefix + "：" + msg;
+            return prefix + "（0x" + hr.ToString("X8") + "）";
         }
 
         public async Task ForceReconnectAsync()
@@ -226,12 +325,10 @@ namespace QQReborn.App.Services
             try
             {
                 CleanupSocket();
-                _connected = false;
             }
             finally { _connLock.Release(); }
 
-            foreach (var kv in _pending) kv.Value.TrySetException(new Exception("connection closed"));
-            _pending.Clear();
+            FailAllPending(new Exception("connection closed"));
 
             try
             {
@@ -246,6 +343,9 @@ namespace QQReborn.App.Services
 
         private void OnClosed(IWebSocket sender, WebSocketClosedEventArgs args)
         {
+            // Ignore close callbacks for sockets we already replaced/disposed.
+            // When _ws is null or points at a newer instance, do nothing.
+            if (!object.ReferenceEquals(sender, _ws)) return;
             HandleConnectionDead();
         }
 
@@ -253,28 +353,27 @@ namespace QQReborn.App.Services
         /// Single place that tears down connection state once we know the socket is no
         /// longer usable, called from three sites: OnClosed (graceful close-frame),
         /// OnMessage's GetDataReader catch (transport-level failure, e.g. TCP reset),
-        /// and RequestAsync's write-failure catch. May run on the socket thread or a
-        /// caller's thread (RequestAsync runs on whatever thread awaited it) -- all
-        /// field writes here are plain assignments/ConcurrentDictionary ops, matching
-        /// the rest of this class's threading style, since .NET guarantees these
-        /// individual writes don't tear even without a lock; worst case under a race is
-        /// a redundant reconnect-loop kick, which TryStartReconnectLoop already guards
-        /// against via Interlocked.
+        /// and RequestAsync's write-failure catch.
+        /// Must fully dispose DataWriter+MessageWebSocket (see CleanupSocket) — only
+        /// nulling _writer causes 0x8000000E on the next connect.
         /// </summary>
         private void HandleConnectionDead()
         {
-            var wasConnected = _connected;
-            _connected = false;
-            // Drop the dead writer/socket so the next request reconnects cleanly rather than
-            // writing into a disposed/half-open stream.
-            _writer = null;
-            foreach (var kv in _pending) kv.Value.TrySetException(new Exception("connection closed"));
-            _pending.Clear();
+            bool wasConnected;
+            lock (_gate) { wasConnected = _connected; }
+            CleanupSocket();
+            FailAllPending(new Exception("connection closed"));
 
             // Only auto-retry a connection that was actually up before (not the very
             // first connect attempt, whose failure is surfaced directly to the caller
             // via the awaited EnsureConnectedAsync/ConnectAsync exception).
             if (wasConnected && _everConnected) TryStartReconnectLoop();
+        }
+
+        private void FailAllPending(Exception ex)
+        {
+            foreach (var kv in _pending) kv.Value.TrySetException(ex);
+            _pending.Clear();
         }
 
         /// <summary>
@@ -353,14 +452,31 @@ namespace QQReborn.App.Services
             {
                 var id = frame.GetNamedString("id", "");
                 var error = frame.ContainsKey("error") ? Str(frame, "error") : null;
+                // Complete pending TCS on the receive thread. Payload is already a plain
+                // string (no WinRT JSON affinity). Completing via RunOnUi can delay or
+                // race with connection teardown and leave callers hanging until timeout.
                 if (!string.IsNullOrEmpty(error))
                 {
-                    RunOnUi(() => { if (_pending.TryRemove(id, out var tcs)) tcs.TrySetException(new Exception(error)); });
+                    if (_pending.TryRemove(id, out var tcsErr))
+                        tcsErr.TrySetException(new Exception(error));
                 }
                 else
                 {
-                    var dataStr = frame.GetNamedValue("data").Stringify();
-                    RunOnUi(() => { if (_pending.TryRemove(id, out var tcs)) tcs.TrySetResult(dataStr); });
+                    string dataStr;
+                    try
+                    {
+                        if (!frame.ContainsKey("data") || frame.GetNamedValue("data") == null
+                            || frame.GetNamedValue("data").ValueType == JsonValueType.Null)
+                            dataStr = "null";
+                        else
+                            dataStr = frame.GetNamedValue("data").Stringify();
+                    }
+                    catch
+                    {
+                        dataStr = "null";
+                    }
+                    if (_pending.TryRemove(id, out var tcsOk))
+                        tcsOk.TrySetResult(dataStr);
                 }
             }
             else if (type == "messageReceived")
@@ -445,7 +561,7 @@ namespace QQReborn.App.Services
             };
             fill?.Invoke(req);
 
-            var tcs = new TaskCompletionSource<string>();
+            var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             _pending[id] = tcs;
 
             await _writeLock.WaitAsync();
@@ -456,16 +572,14 @@ namespace QQReborn.App.Services
                 writer.WriteString(req.Stringify());
                 await writer.StoreAsync();
             }
-            catch
+            catch (Exception ex)
             {
                 // Write failed -- the connection is dead (e.g. writing into a half-open
-                // stream after an unnoticed drop). Tear down connection state the same
-                // way OnClosed/OnMessage do so _connected doesn't stay stuck true, then
-                // drop this pending entry so it doesn't linger awaiting a reply that will
-                // never come, and surface the failure to the caller.
-                HandleConnectionDead();
+                // stream after an unnoticed drop). Tear down fully so the next call
+                // creates a fresh MessageWebSocket (required after any write/close error).
                 _pending.TryRemove(id, out _);
-                throw;
+                HandleConnectionDead();
+                throw new Exception(FormatSocketError("发送请求失败（" + type + "）", ex), ex);
             }
             finally { _writeLock.Release(); }
 
@@ -473,7 +587,11 @@ namespace QQReborn.App.Services
             // lightweight get*/send-text RPCs; callers of media sends pass a longer budget.
             var seconds = timeoutSeconds < 1 ? 10 : timeoutSeconds;
             using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(seconds)))
-            using (cts.Token.Register(() => { if (_pending.TryRemove(id, out var t)) t.TrySetException(new TimeoutException()); }))
+            using (cts.Token.Register(() =>
+            {
+                if (_pending.TryRemove(id, out var t))
+                    t.TrySetException(new TimeoutException("请求超时（" + type + "）"));
+            }))
             {
                 return await tcs.Task;
             }
@@ -1157,6 +1275,9 @@ namespace QQReborn.App.Services
         /// </summary>
         public async Task<bool> ConfigureAccountAsync(string signUrl, string signToken, string signUin)
         {
+            // NapCat path: leave signUin empty unless the user intentionally set one —
+            // a stale QQ number in settings causes a hard mismatch error even when NapCat
+            // is correctly logged in as a different account.
             var raw = await RequestAsync("configureAccount", r =>
             {
                 r["signUrl"] = JsonValue.CreateStringValue(signUrl ?? "");

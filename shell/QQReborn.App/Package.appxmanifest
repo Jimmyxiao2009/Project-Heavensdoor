@@ -5,7 +5,7 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   IgnorableNamespaces="uap mp">
 
-  <Identity Name="QQReborn.App" Publisher="CN=Jimmyxiao2009" Version="0.1.0.2" />
+  <Identity Name="QQReborn.App" Publisher="CN=Jimmyxiao2009" Version="0.1.0.4" />
   <mp:PhoneIdentity PhoneProductId="c3f2a1b0-9d8e-4f7c-a6b5-1e2d3c4b5a60" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
 
   <Properties>

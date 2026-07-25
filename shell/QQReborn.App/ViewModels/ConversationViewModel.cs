@@ -716,8 +716,14 @@ namespace QQReborn.App.ViewModels
                 }
                 // Surface the real reason (e.g. sign 401 / seq=0 / not-online) instead of a
                 // silent draft restore that looks like "can't send to groups".
-                var detail = string.IsNullOrEmpty(ex.Message) ? "请稍后重试" : ex.Message;
-                AppendSystem("发送失败（" + detail + "）");
+                var detail = string.IsNullOrEmpty(ex.Message)
+                    ? "请稍后重试"
+                    : Services.RemoteChatService.FormatSocketError("发送失败", ex);
+                // Avoid double prefix when FormatSocketError already includes it.
+                if (detail.StartsWith("发送失败", System.StringComparison.Ordinal))
+                    AppendSystem(detail);
+                else
+                    AppendSystem("发送失败（" + detail + "）");
             }
         }
 

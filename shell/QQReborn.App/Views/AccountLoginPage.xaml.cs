@@ -70,7 +70,9 @@ namespace QQReborn.App.Views
             _vm.StatusDetailText = "";
             try
             {
-                var accepted = await _remote.ConfigureAccountAsync(_vm.SignServerUrl, _vm.SignToken, _vm.SignUin);
+                // NapCat local gateway: do not send a stale settings QQ number — empty
+                // means "bind whatever NapCat is logged in as".
+                var accepted = await _remote.ConfigureAccountAsync("", "", "");
                 if (!accepted)
                 {
                     _vm.StatusText = "连接网关失败";
@@ -85,12 +87,19 @@ namespace QQReborn.App.Views
             }
             catch (Exception ex)
             {
-                var msg = ex.Message ?? "";
+                var msg = RemoteChatService.FormatSocketError("连接失败", ex);
                 if (msg.IndexOf("访问密码", StringComparison.Ordinal) >= 0
-                    || msg.IndexOf("auth", StringComparison.OrdinalIgnoreCase) >= 0)
+                    || (ex.Message ?? "").IndexOf("访问密码", StringComparison.Ordinal) >= 0
+                    || (ex.Message ?? "").IndexOf("auth", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     _vm.StatusText = "访问密码错误";
-                    _vm.StatusDetailText = "请到设置中填写与电脑管家一致的访问密码后重试。";
+                    _vm.StatusDetailText = "请到设置中填写与电脑管家一致的访问密码后重试。当前管家密码在管家里可复制。";
+                }
+                else if (msg.IndexOf("0x8000000E", StringComparison.OrdinalIgnoreCase) >= 0
+                         || ex.HResult == unchecked((int)0x8000000E))
+                {
+                    _vm.StatusText = "连接状态异常";
+                    _vm.StatusDetailText = "0x8000000E：WebSocket 连接被复用/半开。请完全退出 App 后重开，确认管家网关在线与访问密码一致后再点「开始连接」。";
                 }
                 else
                 {

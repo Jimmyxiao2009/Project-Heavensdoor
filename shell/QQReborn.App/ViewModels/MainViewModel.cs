@@ -85,6 +85,14 @@ namespace QQReborn.App.ViewModels
 
             try
             {
+                // NapCat path: bind the PC-side logged-in account so conversation lists
+                // and send work without requiring a separate "登录 QQ" QR step.
+                if (_chat is RemoteChatService remoteBind)
+                {
+                    try { await remoteBind.ConfigureAccountAsync("", "", ""); }
+                    catch { /* surfaced on getSelf if still broken */ }
+                }
+
                 var self = await _chat.GetSelfAsync();
                 if (_detached) return;
                 Self = self;
