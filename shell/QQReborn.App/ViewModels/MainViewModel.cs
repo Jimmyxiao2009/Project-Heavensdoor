@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Windows.Globalization.Collation;
 using QQReborn.App.Models;
 using QQReborn.App.Mvvm;
 using QQReborn.App.Services;
@@ -21,6 +23,13 @@ namespace QQReborn.App.ViewModels
 
         public ObservableCollection<Contact> Contacts { get; } = new ObservableCollection<Contact>();
 
+        /// <summary>Alphabetical contact groups consumed by the home-page ListView.</summary>
+        public ObservableCollection<ContactGroup> ContactGroups { get; } = new ObservableCollection<ContactGroup>();
+
+        // Uses the system collation rules, so Chinese display names can participate in the
+        // device's localized alphabetical grouping without a hard-coded pinyin table.
+        private readonly CharacterGroupings _contactGroupings = new CharacterGroupings();
+
         private SelfProfile _self;
         public SelfProfile Self { get => _self; private set => Set(ref _self, value); }
 
@@ -39,6 +48,19 @@ namespace QQReborn.App.ViewModels
         // should not fan out into N concurrent GetConversationsAsync calls.
         private bool _refreshing;
 
+        // Conversation snapshots are refreshed whenever the user returns to the home page.
+        // Keeping an index avoids turning every refresh into N linear searches through the
+        // bound collection (which was especially visible for accounts with a large history).
+        private readonly Dictionary<string, ChatConversation> _conversationsById =
+            new Dictionary<string, ChatConversation>(System.StringComparer.Ordinal);
+
+        // Returning from a conversation page can happen several times while the cached home
+        // page is still attached. A fresh network snapshot on every return competes with the
+        // ListView's layout pass and was the visible "卡一下" reported for large groups.
+        // Push events and explicit pull-to-refresh still bypass this cooldown.
+        private static readonly TimeSpan SoftRefreshCooldown = TimeSpan.FromSeconds(2.5);
+        private DateTime _lastConversationRefreshUtc = DateTime.MinValue;
+
         public async Task LoadAsync()
         {
             if (_isLoaded) return;
@@ -51,13 +73,14 @@ namespace QQReborn.App.ViewModels
                 var cached = await ConversationCache.LoadAsync();
                 if (!_detached && cached != null && cached.Count > 0)
                 {
-                    foreach (var c in cached)
+                    foreach (var c in cached
+                        .OrderByDescending(c => c.IsPinned)
+                        .ThenByDescending(c => c.LastTime))
                     {
                         UnreadBadgeStore.SetAtLeast(c.Id, c.Unread);
                         UnreadBadgeStore.ApplyTo(c);
-                        Conversations.Add(c);
+                        AddConversation(c);
                     }
-                    ResortConversations();
                 }
             }
             catch { /* cache is only a fast first paint */ }
@@ -88,6 +111,8 @@ namespace QQReborn.App.ViewModels
             {
                 remote.Reconnected -= OnReconnected;
                 remote.Reconnected += OnReconnected;
+                remote.SessionDataUpdated -= OnSessionDataUpdated;
+                remote.SessionDataUpdated += OnSessionDataUpdated;
             }
 
             try
@@ -111,8 +136,7 @@ namespace QQReborn.App.ViewModels
 
                 var contacts = await _chat.GetContactsAsync();
                 if (_detached) return;
-                Contacts.Clear();
-                foreach (var c in contacts) Contacts.Add(c);
+                RebuildContactGroups(contacts);
             }
             catch (System.Exception)
             {
@@ -122,6 +146,40 @@ namespace QQReborn.App.ViewModels
                 // can fix the server address in Settings and come back.
                 _isLoaded = false;
             }
+        }
+
+        private void RebuildContactGroups(IReadOnlyList<Contact> contacts)
+        {
+            var ordered = (contacts ?? System.Array.Empty<Contact>())
+                .Where(c => c != null)
+                .OrderBy(ContactSortText, System.StringComparer.CurrentCulture)
+                .ThenBy(c => c.Uin)
+                .ToList();
+
+            Contacts.Clear();
+            foreach (var contact in ordered) Contacts.Add(contact);
+
+            ContactGroups.Clear();
+            foreach (var group in ordered
+                .GroupBy(ContactGroupKey)
+                .OrderBy(g => g.Key == "#" ? "{" : g.Key, System.StringComparer.CurrentCulture))
+            {
+                ContactGroups.Add(new ContactGroup(group.Key, group));
+            }
+        }
+
+        private string ContactGroupKey(Contact contact)
+        {
+            var text = ContactSortText(contact);
+            if (string.IsNullOrWhiteSpace(text)) return "#";
+
+            var label = _contactGroupings.Lookup(text);
+            return string.IsNullOrWhiteSpace(label) ? "#" : label.ToUpperInvariant();
+        }
+
+        private static string ContactSortText(Contact contact)
+        {
+            return contact?.DisplayName ?? string.Empty;
         }
 
         /// <summary>Detach from the app-lifetime chat service. MainPage is recreated on every
@@ -145,6 +203,8 @@ namespace QQReborn.App.ViewModels
             {
                 remote.Reconnected -= OnReconnected;
                 remote.Reconnected += OnReconnected;
+                remote.SessionDataUpdated -= OnSessionDataUpdated;
+                remote.SessionDataUpdated += OnSessionDataUpdated;
             }
         }
 
@@ -157,6 +217,7 @@ namespace QQReborn.App.ViewModels
                 remote.Reconnected -= OnReconnected;
                 remote.ConversationFlagsChanged -= OnConversationFlagsChanged;
                 remote.ConversationRead -= OnConversationRead;
+                remote.SessionDataUpdated -= OnSessionDataUpdated;
             }
         }
 
@@ -165,21 +226,19 @@ namespace QQReborn.App.ViewModels
             if (_detached) return; // App-level UnreadBadgeStore still counted; list not bound.
 
             // Bump the conversation's preview/time/unread; the bound properties raise change notifications.
-            foreach (var c in Conversations)
+            ChatConversation currentConversation;
+            if (_conversationsById.TryGetValue(msg.ConversationId, out currentConversation))
             {
-                if (c.Id == msg.ConversationId)
-                {
-                    c.Preview = PreviewFor(msg);
-                    c.LastTime = msg.Time;
-                    // Don't accrue an unread badge for the conversation the user is
-                    // currently reading, nor for our own messages echoed back from
-                    // another device (the real bridge pushes those as Outgoing).
-                    // UnreadBadgeStore already +1'd for non-active; mirror into the row.
-                    if (msg.ConversationId != App.ActiveConversationId && msg.Direction != MessageDirection.Outgoing)
-                        UnreadBadgeStore.ApplyTo(c);
-                    ResortConversations();
-                    return;
-                }
+                currentConversation.Preview = MessagePresentation.GetSummary(msg);
+                currentConversation.LastTime = msg.Time;
+                // Don't accrue an unread badge for the conversation the user is
+                // currently reading, nor for our own messages echoed back from
+                // another device (the real bridge pushes those as Outgoing).
+                // UnreadBadgeStore already +1'd for non-active; mirror into the row.
+                if (msg.ConversationId != App.ActiveConversationId && msg.Direction != MessageDirection.Outgoing)
+                    UnreadBadgeStore.ApplyTo(currentConversation);
+                MoveConversationToSortedPosition(currentConversation);
+                return;
             }
 
             // Unknown conversation: a real backend can push the first message from a brand
@@ -191,7 +250,7 @@ namespace QQReborn.App.ViewModels
             await RefreshConversationsAsync();
             if (_detached) return;
 
-            if (!Conversations.Any(c => c.Id == msg.ConversationId))
+            if (!_conversationsById.ContainsKey(msg.ConversationId))
             {
                 var synthesized = new ChatConversation
                 {
@@ -200,13 +259,13 @@ namespace QQReborn.App.ViewModels
                         ? ConversationKind.Group : ConversationKind.Friend,
                     Title = msg.SenderName,
                     AvatarPath = msg.SenderAvatarPath,
-                    Preview = PreviewFor(msg),
+                    Preview = MessagePresentation.GetSummary(msg),
                     LastTime = msg.Time,
                     Unread = 0,
                 };
                 UnreadBadgeStore.ApplyTo(synthesized);
-                Conversations.Add(synthesized);
-                ResortConversations();
+                AddConversation(synthesized);
+                MoveConversationToSortedPosition(synthesized);
             }
         }
 
@@ -219,7 +278,8 @@ namespace QQReborn.App.ViewModels
         {
             if (_detached || info == null || string.IsNullOrEmpty(info.ConversationId)) return;
             UnreadBadgeStore.Clear(info.ConversationId);
-            var conv = Conversations.FirstOrDefault(c => c.Id == info.ConversationId);
+            ChatConversation conv;
+            if (!_conversationsById.TryGetValue(info.ConversationId, out conv)) return;
             if (conv == null) return;
             conv.Unread = 0;
             if (!string.IsNullOrEmpty(info.LastReadAt))
@@ -229,7 +289,8 @@ namespace QQReborn.App.ViewModels
         private void OnConversationFlagsChanged(object sender, ConversationFlagsChangedInfo info)
         {
             if (_detached || info == null || string.IsNullOrEmpty(info.ConversationId)) return;
-            var conv = Conversations.FirstOrDefault(c => c.Id == info.ConversationId);
+            ChatConversation conv;
+            if (!_conversationsById.TryGetValue(info.ConversationId, out conv)) return;
             if (conv == null) return;
             conv.IsPinned = info.IsPinned;
             conv.IsMuted = info.IsMuted;
@@ -238,7 +299,7 @@ namespace QQReborn.App.ViewModels
                 conv.Unread = 0;
                 UnreadBadgeStore.Clear(info.ConversationId);
             }
-            ResortConversations();
+            MoveConversationToSortedPosition(conv);
         }
 
         private async void OnReconnected(object sender, System.EventArgs e)
@@ -246,12 +307,26 @@ namespace QQReborn.App.ViewModels
             await RefreshConversationsAsync();
         }
 
+        private async void OnSessionDataUpdated(object sender, System.EventArgs e)
+        {
+            if (_detached) return;
+            await RefreshConversationsAsync();
+            try
+            {
+                var contacts = await _chat.GetContactsAsync();
+                if (!_detached) RebuildContactGroups(contacts);
+            }
+            catch { /* the next refresh/reconnect can retry the contacts */ }
+        }
+
         /// <summary>Public soft refresh (e.g. MainPage re-appears). Same as internal catch-up.</summary>
-        public Task SoftRefreshAsync()
+        public Task SoftRefreshAsync(bool force = false)
         {
             // Do not block navigation back to MainPage on the network round-trip.
             // Pushes and this background merge will update the existing rows in place.
             if (_detached) return Task.CompletedTask;
+            if (!force && (_refreshing || DateTime.UtcNow - _lastConversationRefreshUtc < SoftRefreshCooldown))
+                return Task.CompletedTask;
             _ = RefreshConversationsAsync();
             return Task.CompletedTask;
         }
@@ -265,6 +340,7 @@ namespace QQReborn.App.ViewModels
         {
             if (_refreshing || _detached) return;
             _refreshing = true;
+            _lastConversationRefreshUtc = DateTime.UtcNow;
             try
             {
                 IReadOnlyList<ChatConversation> fresh;
@@ -293,22 +369,37 @@ namespace QQReborn.App.ViewModels
         {
             if (fresh == null) return;
             var muteAll = NotificationMuteGate.IsMuteAll();
+
+            // A cold start has no existing containers or scroll position to preserve. Add the
+            // already-sorted snapshot once, rather than add in server order then issue a Move
+            // notification for nearly every row.
+            if (Conversations.Count == 0)
+            {
+                foreach (var f in fresh
+                    .Where(c => c != null)
+                    .OrderByDescending(c => c.IsPinned)
+                    .ThenByDescending(c => c.LastTime))
+                {
+                    ApplyConversationNotificationState(f, muteAll);
+                    UnreadBadgeStore.SetAtLeast(f.Id, f.Unread);
+                    UnreadBadgeStore.ApplyTo(f);
+                    AddConversation(f);
+                }
+                return;
+            }
+
+            var toReposition = new List<ChatConversation>();
             foreach (var f in fresh)
             {
+                if (f == null || string.IsNullOrEmpty(f.Id)) continue;
                 // Keep UI + local gate aligned when global 全部消息免打扰 is on.
-                if (muteAll && !string.IsNullOrEmpty(f.Id) && !NotificationMuteGate.IsSpecial(f.Id))
-                {
-                    f.IsMuted = true;
-                    NotificationMuteGate.SetConversationMuted(f.Id, true);
-                }
-                else if (NotificationMuteGate.IsConversationMuted(f.Id))
-                {
-                    f.IsMuted = true;
-                }
+                ApplyConversationNotificationState(f, muteAll);
 
-                var existing = Conversations.FirstOrDefault(c => c.Id == f.Id);
+                ChatConversation existing;
+                _conversationsById.TryGetValue(f.Id, out existing);
                 if (existing != null)
                 {
+                    var sortChanged = existing.IsPinned != f.IsPinned || existing.LastTime != f.LastTime;
                     existing.Title = f.Title;
                     existing.Preview = f.Preview;
                     existing.LastTime = f.LastTime;
@@ -320,32 +411,68 @@ namespace QQReborn.App.ViewModels
                     existing.IsPinned = f.IsPinned;
                     existing.IsMuted = f.IsMuted;
                     if (!string.IsNullOrEmpty(f.Announcement)) existing.Announcement = f.Announcement;
+                    if (sortChanged) toReposition.Add(existing);
                 }
                 else
                 {
                     UnreadBadgeStore.SetAtLeast(f.Id, f.Unread);
                     UnreadBadgeStore.ApplyTo(f);
-                    Conversations.Add(f);
+                    AddConversation(f);
+                    toReposition.Add(f);
                 }
             }
-            ResortConversations();
+
+            // Usually a background refresh only changes previews/unread badges. Reposition
+            // only rows whose pin/time ordering actually changed, instead of sorting and
+            // moving the entire ObservableCollection on every return navigation.
+            foreach (var conversation in toReposition.Distinct())
+                MoveConversationToSortedPosition(conversation);
         }
 
-        /// <summary>Short preview text for a message, falling back to a "[类型]" tag for
-        /// content types that don't carry display text (image/voice/etc). Duplicates
-        /// ConversationViewModel's private ContentSummary(ChatMessage) -- kept separate
-        /// rather than extracted to a shared helper because ConversationViewModel is owned
-        /// by another workstream; leader should consider consolidating the two later.</summary>
-        private static string PreviewFor(ChatMessage m)
+        private static void ApplyConversationNotificationState(ChatConversation conversation, bool muteAll)
         {
-            if (m == null) return string.Empty;
-            if (m.IsImage) return "[图片]";
-            if (m.IsSticker) return "[表情]";
-            if (m.IsVoice) return "[语音]";
-            if (m.IsLinkCard) return "[链接]";
-            if (m.IsFile) return "[文件]";
-            if (m.IsLocation) return "[位置]";
-            return m.Text ?? string.Empty;
+            if (muteAll && !NotificationMuteGate.IsSpecial(conversation.Id))
+            {
+                conversation.IsMuted = true;
+                NotificationMuteGate.SetConversationMuted(conversation.Id, true);
+            }
+            else if (NotificationMuteGate.IsConversationMuted(conversation.Id))
+            {
+                conversation.IsMuted = true;
+            }
+        }
+
+        private void AddConversation(ChatConversation conversation)
+        {
+            if (conversation == null) return;
+            Conversations.Add(conversation);
+            if (!string.IsNullOrEmpty(conversation.Id))
+                _conversationsById[conversation.Id] = conversation;
+        }
+
+        private void MoveConversationToSortedPosition(ChatConversation conversation)
+        {
+            if (conversation == null) return;
+            var current = Conversations.IndexOf(conversation);
+            if (current < 0) return;
+
+            var target = 0;
+            foreach (var other in Conversations)
+            {
+                if (!object.ReferenceEquals(other, conversation)
+                    && CompareConversations(other, conversation) < 0)
+                    target++;
+            }
+            if (current != target) Conversations.Move(current, target);
+        }
+
+        private static int CompareConversations(ChatConversation left, ChatConversation right)
+        {
+            if (object.ReferenceEquals(left, right)) return 0;
+            if (left == null) return 1;
+            if (right == null) return -1;
+            var pinned = right.IsPinned.CompareTo(left.IsPinned);
+            return pinned != 0 ? pinned : right.LastTime.CompareTo(left.LastTime);
         }
 
         /// <summary>Sort conversations pinned-first, then by most-recent activity. Re-orders the bound collection in place.</summary>
@@ -373,5 +500,16 @@ namespace QQReborn.App.ViewModels
                 if (current != i) Conversations.Move(current, i);
             }
         }
+    }
+
+    public sealed class ContactGroup : ObservableCollection<Contact>
+    {
+        public ContactGroup(string key, IEnumerable<Contact> contacts)
+            : base(contacts)
+        {
+            Key = key;
+        }
+
+        public string Key { get; }
     }
 }

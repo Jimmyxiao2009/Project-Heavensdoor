@@ -35,9 +35,11 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
     private bool _online;
     private CancellationTokenSource? _wsCts;
     private Task? _wsLoop;
+    private readonly SemaphoreSlim _configureGate = new(1, 1);
+    private Task? _populateTask;
+    private long _populateUin;
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _historyGates = new();
     private long _prefsUin;
-    private int _lastHistoryPageCount;
-    private int _lastHistoryAdded;
 
     // Pending system requests (flag required by NapCat set_*_add_request).
     private readonly List<JsonObject> _friendRequests = new();
@@ -70,6 +72,15 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
 
     public async Task<(JsonObject? data, string? error)> ConfigureAccountAsync(string signUrl, string? signToken, string signUinRaw)
     {
+        // configureAccount is also used after a Shell reconnect. Serialise it so two
+        // overlapping requests cannot clear/repopulate the same cache out of order.
+        await _configureGate.WaitAsync();
+        try { return await ConfigureAccountCoreAsync(signUrl, signToken, signUinRaw); }
+        finally { _configureGate.Release(); }
+    }
+
+    private async Task<(JsonObject? data, string? error)> ConfigureAccountCoreAsync(string signUrl, string? signToken, string signUinRaw)
+    {
         // signUrl/signToken are Lagrange-only; NapCat ignores them.
         // Optional: signUin must match NapCat logged-in account when provided.
         try
@@ -92,35 +103,47 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 return (null, $"NapCat 当前登录 {uin}，与 App 填写的 {expect} 不一致。本机网关模式可清空 QQ 号再试。");
             }
 
+            bool reload;
             lock (_gate)
             {
+                reload = !_online || _selfUin != uin;
                 _selfUin = uin;
                 _selfNickname = nick;
                 _online = true;
-                _messages.Clear();
-                _conversations.Clear();
-                _contacts.Clear();
-                _msgIndex.Clear();
-                LoadPrefs(uin);
+                if (reload)
+                {
+                    _messages.Clear();
+                    _conversations.Clear();
+                    _contacts.Clear();
+                    _msgIndex.Clear();
+                    LoadPrefs(uin);
+                }
             }
 
-            await PopulateListsAsync();
+            // Repeated configureAccount calls are normal during page reloads and
+            // reconnects. Do not wipe a live transcript in that case. Populating
+            // contacts/groups can involve many slow NapCat calls, so it must not
+            // hold the account-bind request open until every list is complete.
+            if (reload) StartPopulateLists(uin);
             EnsureEventLoop();
-            _qzone = new QzoneFeedClient(_api, uin);
-            // Fire-and-forget first page of 好友动态
-            _ = Task.Run(async () =>
+            if (reload || _qzone == null)
             {
-                try
+                _qzone = new QzoneFeedClient(_api, uin);
+                // Fire-and-forget first page of 好友动态
+                _ = Task.Run(async () =>
                 {
-                    await _qzone.RefreshAsync();
-                    Broadcast?.Invoke(new JsonObject
+                    try
                     {
-                        ["type"] = "spaceFeedUpdated",
-                        ["data"] = _qzone.Snapshot(),
-                    }.ToJsonString());
-                }
-                catch (Exception ex) { Console.WriteLine("[Qzone] initial fetch: " + ex.Message); }
-            });
+                        await _qzone.RefreshAsync();
+                        Broadcast?.Invoke(new JsonObject
+                        {
+                            ["type"] = "spaceFeedUpdated",
+                            ["data"] = _qzone.Snapshot(),
+                        }.ToJsonString());
+                    }
+                    catch (Exception ex) { Console.WriteLine("[Qzone] initial fetch: " + ex.Message); }
+                });
+            }
             BroadcastLoginStatus("online", uin, nick);
             Console.WriteLine($"[NapCat] gateway online uin={uin} nick={nick}");
             return (new JsonObject
@@ -136,6 +159,34 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         catch (Exception ex)
         {
             return (null, "configureAccount failed: " + ex.Message);
+        }
+    }
+
+    private void StartPopulateLists(long uin)
+    {
+        lock (_gate)
+        {
+            if (_populateTask != null && !_populateTask.IsCompleted && _populateUin == uin)
+                return;
+
+            _populateUin = uin;
+            _populateTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await PopulateListsAsync();
+                    Broadcast?.Invoke(new JsonObject
+                    {
+                        ["type"] = "sessionDataUpdated",
+                        ["data"] = new JsonObject { ["uin"] = uin },
+                    }.ToJsonString());
+                    Console.WriteLine($"[NapCat] background lists ready uin={uin}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("[NapCat] background list population: " + ex.Message);
+                }
+            });
         }
     }
 
@@ -221,9 +272,13 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 }
                 var id = (string)wire["id"]!;
                 if (list.Any(m => (string?)m["id"] == id)) return;
-                list.Add(wire);
+                InsertMessageInTimeOrder(list, wire);
                 _msgIndex[id] = wire;
-                BumpConversation(convId, (string?)wire["text"], (string?)wire["direction"] == "Incoming");
+                BumpConversation(
+                    convId,
+                    (string?)wire["text"],
+                    (string?)wire["direction"] == "Incoming",
+                    ParseWireTime(wire));
             }
             Broadcast?.Invoke(new JsonObject
             {
@@ -352,6 +407,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
 
         var (contentType, text, imagePath, elements) = MapSegments(ev["message"] ?? ev["raw_message"]);
+        var location = ReadLocation(ev["message"] ?? ev["raw_message"]);
         var time = NapCatApiClient.ReadLong(ev["time"]);
         var dto = time > 0
             ? DateTimeOffset.FromUnixTimeSeconds(time)
@@ -361,7 +417,11 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             ? NapCatApiClient.ReadStr(ev["group_name"])
             : senderName);
 
-        var id = $"{convId}:{messageId}";
+        // A few OneBot adapters omit message_id for synthetic/system events. A
+        // shared :0 id would collapse every such event into one cached message.
+        var id = messageId > 0
+            ? $"{convId}:{messageId}"
+            : $"{convId}:event-{Guid.NewGuid():N}";
         var wire = new JsonObject
         {
             ["id"] = id,
@@ -373,6 +433,10 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             ["contentType"] = contentType,
             ["text"] = text,
             ["imagePath"] = imagePath,
+            ["placeName"] = location.title,
+            ["address"] = location.content,
+            ["latitude"] = location.latitude,
+            ["longitude"] = location.longitude,
             ["elements"] = elements,
             ["time"] = dto.ToString("o"),
             ["state"] = "Sent",
@@ -384,6 +448,21 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             : senderName;
         EnrichConversationMeta(wire, convId, preferredTitle);
         return wire;
+    }
+
+    private static (double latitude, double longitude, string title, string content) ReadLocation(JsonNode? message)
+    {
+        if (message is not JsonArray arr) return (0, 0, "", "");
+        foreach (var segment in arr)
+        {
+            if (segment is not JsonObject so || !string.Equals(NapCatApiClient.ReadStr(so["type"]), "location", StringComparison.OrdinalIgnoreCase)) continue;
+            var data = so["data"] as JsonObject;
+            if (data == null) continue;
+            var lat = NapCatApiClient.ReadDouble(data["lat"] ?? data["latitude"]);
+            var lon = NapCatApiClient.ReadDouble(data["lon"] ?? data["longitude"]);
+            return (lat, lon, NapCatApiClient.ReadStr(data["title"]), NapCatApiClient.ReadStr(data["content"]));
+        }
+        return (0, 0, "", "");
     }
 
     private static (string contentType, string text, string? imagePath, JsonArray elements) MapSegments(JsonNode? message)
@@ -444,6 +523,18 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                         elements.Add(new JsonObject { ["Type"] = "Record", ["Url"] = NapCatApiClient.ReadStr(data?["url"]) });
                         textParts.Add("[语音]");
                         break;
+                    case "forward":
+                        elements.Add(new JsonObject { ["Type"] = "Forward", ["Url"] = NapCatApiClient.ReadStr(data?["id"]), ["Text"] = "合并转发" });
+                        textParts.Add("[合并转发]");
+                        break;
+                    case "location":
+                        elements.Add(new JsonObject
+                        {
+                            ["Type"] = "Location",
+                            ["Text"] = NapCatApiClient.ReadStr(data?["content"] ?? data?["title"]),
+                        });
+                        textParts.Add(NapCatApiClient.ReadStr(data?["title"] ?? data?["content"]));
+                        break;
                     case "video":
                         elements.Add(new JsonObject { ["Type"] = "Video", ["Url"] = NapCatApiClient.ReadStr(data?["url"]) });
                         textParts.Add("[视频]");
@@ -468,6 +559,17 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         if (imageCount > 0 && textParts.Count > 0) contentType = "Mixed";
         else if (imageCount > 0) contentType = "Image";
         else contentType = "Text";
+
+        foreach (var element in elements)
+        {
+            if (element is JsonObject eo && string.Equals(NapCatApiClient.ReadStr(eo["Type"]), "Forward", StringComparison.OrdinalIgnoreCase))
+            {
+                contentType = "Forward";
+                break;
+            }
+            if (element is JsonObject location && string.Equals(NapCatApiClient.ReadStr(location["Type"]), "Location", StringComparison.OrdinalIgnoreCase))
+                contentType = "Location";
+        }
 
         return (contentType, text, firstImage, elements);
     }
@@ -633,7 +735,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
     }
 
-    private void BumpConversation(string convId, string? preview, bool incrementUnread)
+    private void BumpConversation(string convId, string? preview, bool incrementUnread, DateTimeOffset? messageTime = null)
     {
         lock (_gate)
         {
@@ -646,9 +748,19 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 pref = new ConvPref();
                 _convPrefs[convId] = pref;
             }
-            if (incrementUnread && !pref.Muted)
+            var countsAsUnread = incrementUnread && !pref.Muted;
+            if (countsAsUnread && messageTime.HasValue
+                && !string.IsNullOrEmpty(pref.LastReadAt)
+                && DateTimeOffset.TryParse(pref.LastReadAt, out var lastReadAt)
+                && messageTime.Value <= lastReadAt)
             {
-                var u = (int)NapCatApiClient.ReadLong(conv["unread"]) + 1;
+                // Event WS delivery can lag a read acknowledgement. Do not resurrect
+                // an unread badge for a message that was already read by its timestamp.
+                countsAsUnread = false;
+            }
+            if (countsAsUnread)
+            {
+                var u = Math.Max(pref.Unread, (int)NapCatApiClient.ReadLong(conv["unread"])) + 1;
                 conv["unread"] = u;
                 pref.Unread = u;
                 SavePrefs();
@@ -738,10 +850,23 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         return arr;
     }
 
-    private async Task TryPullHistoryAsync(string conversationId, int count, string? beforeId)
+    private async Task<(int pageCount, int added)> TryPullHistoryAsync(string conversationId, int count, string? beforeId)
     {
-        if (!TryParseConv(conversationId, out var kind, out var peer)) return;
+        if (!TryParseConv(conversationId, out var kind, out var peer)) return (0, 0);
         count = count <= 0 ? 20 : Math.Min(count, 50);
+
+        var historyGate = _historyGates.GetOrAdd(conversationId, _ => new SemaphoreSlim(1, 1));
+        await historyGate.WaitAsync();
+        try
+        {
+            return await TryPullHistoryCoreAsync(conversationId, kind, peer, count, beforeId);
+        }
+        finally { historyGate.Release(); }
+    }
+
+    private async Task<(int pageCount, int added)> TryPullHistoryCoreAsync(
+        string conversationId, char kind, long peer, int count, string? beforeId)
+    {
 
         // NapCat: get_*_msg_history returns a window of messages.
         // To page OLDER than an anchor, pass reverseOrder=true and message_seq=anchor message_id
@@ -778,7 +903,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         if (err != null)
         {
             Console.WriteLine($"[NapCat] history {action}: {err}");
-            return;
+            return (0, 0);
         }
 
         var messages = data as JsonArray
@@ -786,13 +911,9 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             ?? data?["message"] as JsonArray;
         if (messages == null || messages.Count == 0)
         {
-            _lastHistoryPageCount = 0;
-            _lastHistoryAdded = 0;
             Console.WriteLine($"[NapCat] history {action}: empty page beforeId={beforeId}");
-            return;
+            return (0, 0);
         }
-        _lastHistoryPageCount = messages.Count;
-        _lastHistoryAdded = 0;
 
         var added = 0;
         foreach (var n in messages)
@@ -819,11 +940,10 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 }
                 var id = (string)wire["id"]!;
                 if (list.Any(m => (string?)m["id"] == id)) continue;
-                list.Add(wire);
+                InsertMessageInTimeOrder(list, wire);
                 _msgIndex[id] = wire;
                 added++;
             }
-            _lastHistoryAdded = added;
         }
 
         lock (_gate)
@@ -836,6 +956,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             }
         }
         Console.WriteLine($"[NapCat] history {action}: merged +{added}/{messages.Count} beforeId={beforeId}");
+        return (messages.Count, added);
     }
 
     public async Task<JsonArray> GetGroupMembersAsync(string conversationId)
@@ -1012,7 +1133,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
     {
         count = count > 0 ? Math.Min(count, 50) : 20;
         // Always ask NapCat for a page. reverseOrder+message_seq is applied when beforeId set.
-        await TryPullHistoryAsync(conversationId, count, beforeId);
+        var history = await TryPullHistoryAsync(conversationId, count, beforeId);
 
         JsonArray messages;
         lock (_gate)
@@ -1041,7 +1162,8 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
 
         // Stop when NapCat page empty/short, or full page produced only duplicates.
-        var hasMore = _lastHistoryPageCount >= count && (_lastHistoryAdded > 0 || string.IsNullOrEmpty(beforeId));
+        var hasMore = history.pageCount >= count
+            && (history.added > 0 || string.IsNullOrEmpty(beforeId));
         if (messages.Count == 0) hasMore = false;
         return (new JsonObject { ["messages"] = messages, ["hasMore"] = hasMore }, null);
     }
@@ -1159,30 +1281,6 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             return (null, "voice-url-not-found");
 
         // Shell prefers audioBase64. Download http(s) when possible.
-        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-                var bytes = await http.GetByteArrayAsync(url);
-                if (bytes.Length > 0)
-                {
-                    return (new JsonObject
-                    {
-                        ["audioBase64"] = Convert.ToBase64String(bytes),
-                        ["format"] = "bin",
-                        ["duration"] = 0,
-                        ["url"] = url,
-                    }, null);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("[NapCat] voice download: " + ex.Message);
-            }
-            return (new JsonObject { ["url"] = url, ["format"] = "url", ["duration"] = 0 }, null);
-        }
-
         try
         {
             var (data, err) = await _api.CallAsync("get_record", new JsonObject
@@ -1203,12 +1301,93 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                     ["url"] = local,
                 }, null);
             }
+            if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+                var bytes = await http.GetByteArrayAsync(url);
+                if (bytes.Length > 0)
+                    return (new JsonObject { ["audioBase64"] = Convert.ToBase64String(bytes), ["format"] = "bin", ["duration"] = 0, ["url"] = url }, null);
+            }
             return (new JsonObject { ["url"] = string.IsNullOrEmpty(local) ? url : local, ["format"] = "path" }, null);
         }
         catch (Exception ex)
         {
             return (new JsonObject { ["url"] = url, ["format"] = "path" }, "voice: " + ex.Message);
         }
+    }
+
+    public async Task<(JsonObject? data, string? error)> GetFavoriteStickersAsync(int count)
+    {
+        var (raw, err) = await _api.CallAsync("fetch_custom_face", new JsonObject
+        {
+            ["count"] = count > 0 ? count : 48,
+        });
+        if (err != null) return (null, err);
+        var stickers = new JsonArray();
+        var source = raw as JsonArray ?? raw?["data"] as JsonArray;
+        if (source != null)
+        {
+            foreach (var item in source)
+            {
+                var value = item is JsonValue
+                    ? NapCatApiClient.ReadStr(item)
+                    : NapCatApiClient.ReadStr(item?["url"] ?? item?["file"] ?? item?["path"]);
+                if (!string.IsNullOrWhiteSpace(value)) stickers.Add(value);
+            }
+        }
+        return (new JsonObject { ["stickers"] = stickers }, null);
+    }
+
+    public async Task<(JsonObject? data, string? error)> GetForwardDetailsAsync(string messageId)
+    {
+        if (!_msgIndex.TryGetValue(messageId, out var wire))
+            return (null, "message-not-found");
+        var forwardId = "";
+        if (wire["elements"] is JsonArray elements)
+        {
+            foreach (var element in elements)
+            {
+                if (element is not JsonObject eo) continue;
+                var type = NapCatApiClient.ReadStr(eo["Type"] ?? eo["type"]);
+                if (string.Equals(type, "Forward", StringComparison.OrdinalIgnoreCase))
+                {
+                    forwardId = NapCatApiClient.ReadStr(eo["Url"] ?? eo["url"] ?? eo["id"]);
+                    break;
+                }
+            }
+        }
+        if (string.IsNullOrEmpty(forwardId)) return (null, "forward-id-not-found");
+        var (raw, err) = await _api.CallAsync("get_forward_msg", new JsonObject { ["message_id"] = forwardId });
+        if (err != null) return (null, err);
+        var source = raw as JsonArray ?? raw?["messages"] as JsonArray ?? raw?["content"] as JsonArray;
+        var entries = new JsonArray();
+        if (source != null)
+        {
+            foreach (var item in source)
+            {
+                if (item is not JsonObject row) continue;
+                var sender = NapCatApiClient.ReadStr(row["sender"]?["nickname"]
+                    ?? row["sender"]?["card"] ?? row["senderName"] ?? row["nickname"]);
+                var content = row["message"] ?? row["content"];
+                string text;
+                string? image = null;
+                if (content is JsonArray)
+                {
+                    var mapped = MapSegments(content);
+                    text = mapped.text;
+                    image = mapped.imagePath;
+                }
+                else text = NapCatApiClient.ReadStr(content);
+                if (string.IsNullOrEmpty(text) && string.IsNullOrEmpty(image)) text = "[消息]";
+                entries.Add(new JsonObject
+                {
+                    ["senderName"] = sender,
+                    ["text"] = text,
+                    ["imagePath"] = image,
+                });
+            }
+        }
+        return (new JsonObject { ["entries"] = entries }, null);
     }
 
     public async Task<(JsonObject? data, string? error)> GetFileDownloadUrlAsync(string conversationId, string fileId)
@@ -1395,6 +1574,21 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
     }
 
+    public JsonObject SetSpaceComment(string momentId, string text)
+    {
+        if (_qzone == null) return new JsonObject { ["ok"] = false, ["reason"] = "not-online" };
+        if (string.IsNullOrWhiteSpace(text)) return new JsonObject { ["ok"] = false, ["reason"] = "empty" };
+        try
+        {
+            var ok = _qzone.CommentAsync(momentId, text).GetAwaiter().GetResult();
+            return new JsonObject { ["ok"] = ok };
+        }
+        catch (Exception ex)
+        {
+            return new JsonObject { ["ok"] = false, ["reason"] = ex.Message };
+        }
+    }
+
     public JsonObject IngestSpaceWebhook(JsonNode? body)
     {
         // Optional hybrid: allow POST /webhook/space to append local moments.
@@ -1430,7 +1624,8 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         string conversationId, string text, string? replyToId = null,
         string contentType = "Text", string? placeName = null, string? address = null, string? thumb = null,
         string? imageBase64 = null, JsonNode? imagesBase64Node = null, string? audioBase64 = null, int voiceSeconds = 0,
-        string? fileBase64 = null, string? fileName = null, string? mentionsJson = null)
+        string? fileBase64 = null, string? fileName = null, string? mentionsJson = null,
+        double latitude = 0, double longitude = 0)
     {
         if (!_online) return (null, "not-online");
         if (!TryParseConv(conversationId, out var kind, out var peer))
@@ -1482,8 +1677,19 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
         if (contentType == "Location")
         {
-            var loc = string.IsNullOrEmpty(address) ? $"[位置] {placeName}" : $"[位置] {placeName}（{address}）";
-            segments.Add(new JsonObject { ["type"] = "text", ["data"] = new JsonObject { ["text"] = loc } });
+            if (latitude == 0 && longitude == 0)
+                return (null, "location-coordinates-missing");
+            segments.Add(new JsonObject
+            {
+                ["type"] = "location",
+                ["data"] = new JsonObject
+                {
+                    ["lat"] = latitude,
+                    ["lon"] = longitude,
+                    ["title"] = placeName ?? "我的位置",
+                    ["content"] = address ?? "",
+                },
+            });
         }
 
         // Images (图文混排: text/at segments above + image segments).
@@ -1491,6 +1697,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         // return message_id but render as empty / broken thumbnails on QQ clients.
         var images = CollectImages(imageBase64, imagesBase64Node);
         var tempImagePaths = new List<string>();
+        var tempVoicePaths = new List<string>();
         foreach (var b64 in images)
         {
             var path = TryWriteTempMedia(b64, ".jpg");
@@ -1505,10 +1712,12 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
 
         if (contentType == "Voice" && !string.IsNullOrEmpty(audioBase64))
         {
+            var voicePath = TryWriteTempMedia(audioBase64, ".m4a");
+            if (voicePath != null) tempVoicePaths.Add(voicePath);
             segments.Add(new JsonObject
             {
                 ["type"] = "record",
-                ["data"] = new JsonObject { ["file"] = "base64://" + audioBase64 },
+                ["data"] = new JsonObject { ["file"] = voicePath ?? ("base64://" + StripDataUrl(audioBase64)) },
             });
         }
 
@@ -1558,6 +1767,15 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             }
 
             var (wireType, wireText, imagePath, elements) = MapSegments(segments);
+            if (contentType == "Location")
+            {
+                wireType = "Location";
+                wireText = placeName ?? "我的位置";
+                elements = new JsonArray
+                {
+                    new JsonObject { ["Type"] = "Location", ["Text"] = address ?? "" },
+                };
+            }
             // Never echo base64:// or local temp paths to Shell — Image control can't load them
             // (shows empty). Prefer CDN from NapCat; else empty so client can patch local path.
             imagePath = ExtractUrlFromSendResult(data) ?? SanitizeOutboundImagePath(imagePath);
@@ -1584,6 +1802,11 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 ["contentType"] = wireType,
                 ["text"] = wireText,
                 ["imagePath"] = imagePath,
+                ["placeName"] = placeName,
+                ["address"] = address,
+                ["thumb"] = thumb,
+                ["latitude"] = latitude,
+                ["longitude"] = longitude,
                 ["elements"] = elements,
                 ["time"] = DateTimeOffset.UtcNow.ToString("o"),
                 ["state"] = "Sent",
@@ -1611,6 +1834,10 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         finally
         {
             foreach (var p in tempImagePaths)
+            {
+                try { if (File.Exists(p)) File.Delete(p); } catch { /* ignore */ }
+            }
+            foreach (var p in tempVoicePaths)
             {
                 try { if (File.Exists(p)) File.Delete(p); } catch { /* ignore */ }
             }
@@ -1768,7 +1995,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
 
     private JsonObject BuildOutgoingWire(
         string conversationId, string contentType, string text, string? imagePath, JsonArray elements,
-        long messageId, string? fileId = null)
+        long messageId, string? fileId = null, JsonArray? forwardEntries = null)
     {
         var id = messageId > 0
             ? $"{conversationId}:{messageId}"
@@ -1792,6 +2019,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             ["napcatMessageId"] = messageId,
         };
         if (!string.IsNullOrEmpty(fileId)) wire["fileId"] = fileId;
+        if (forwardEntries != null) wire["forwardEntries"] = forwardEntries;
         EnrichConversationMeta(wire, conversationId);
         lock (_gate)
         {
@@ -1800,7 +2028,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 list = new List<JsonObject>();
                 _messages[conversationId] = list;
             }
-            list.Add(wire);
+            InsertMessageInTimeOrder(list, wire);
             _msgIndex[id] = wire;
             BumpConversation(conversationId, text, incrementUnread: false);
         }
@@ -1942,12 +2170,96 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         }
         var wire = BuildOutgoingWire(
             conversationId,
-            contentType: "Text",
+            contentType: "Forward",
             text: text,
             imagePath: null,
-            elements: new JsonArray { new JsonObject { ["Type"] = "Text", ["Text"] = text } },
-            messageId: newMid);
+            elements: new JsonArray { new JsonObject { ["Type"] = "Forward", ["Text"] = text, ["Url"] = newMid.ToString() } },
+            messageId: newMid,
+            forwardEntries: BuildForwardEntries(new[] { src }));
         return (wire, null);
+    }
+
+    public async Task<(JsonObject? data, string? error)> ForwardManyAsync(string conversationId, JsonArray messageIds)
+    {
+        if (!TryParseConv(conversationId, out var kind, out var peer))
+            return (null, "invalid-conversation");
+        var mids = new List<long>();
+        var sources = new List<JsonObject?>();
+        foreach (var value in messageIds ?? new JsonArray())
+        {
+            var id = NapCatApiClient.ReadStr(value);
+            var mid = ExtractNapCatMessageId(id);
+            if (mid <= 0) continue;
+            mids.Add(mid);
+            sources.Add(ResolveMessageWire(id, mid));
+        }
+        if (mids.Count == 0) return (null, "invalid-message-id");
+
+        var nodes = new JsonArray();
+        foreach (var mid in mids)
+            nodes.Add(new JsonObject { ["type"] = "node", ["data"] = new JsonObject { ["id"] = mid.ToString() } });
+        var (data, err) = await CallForwardMsgAsync(kind, peer, nodes);
+        var newMid = NapCatApiClient.ReadLong(data?["message_id"]);
+        if (newMid <= 0)
+        {
+            var customNodes = new JsonArray();
+            foreach (var src in sources)
+            {
+                var senderName = NapCatApiClient.ReadStr(src?["senderName"]);
+                if (string.IsNullOrEmpty(senderName)) senderName = _selfUin.ToString();
+                var senderUin = NapCatApiClient.ReadLong(src?["senderUin"]);
+                if (senderUin <= 0) senderUin = _selfUin;
+                var srcText = NapCatApiClient.ReadStr(src?["text"]);
+                if (string.IsNullOrEmpty(srcText)) srcText = "[消息]";
+                customNodes.Add(new JsonObject
+                {
+                    ["type"] = "node",
+                    ["data"] = new JsonObject
+                    {
+                        ["user_id"] = senderUin.ToString(),
+                        ["nickname"] = senderName,
+                        ["content"] = new JsonArray
+                        {
+                            new JsonObject { ["type"] = "text", ["data"] = new JsonObject { ["text"] = srcText } },
+                        },
+                    },
+                });
+            }
+            (data, err) = await CallForwardMsgAsync(kind, peer, customNodes);
+            newMid = NapCatApiClient.ReadLong(data?["message_id"]);
+        }
+        if (newMid <= 0) return (null, err ?? "forward-failed");
+        var preview = "合并转发 " + mids.Count + " 条消息";
+        var wire = BuildOutgoingWire(conversationId, "Forward", preview, null,
+            new JsonArray { new JsonObject { ["Type"] = "Forward", ["Text"] = preview, ["Url"] = newMid.ToString() } },
+            newMid, forwardEntries: BuildForwardEntries(sources));
+        return (wire, null);
+    }
+
+    private JsonObject? ResolveMessageWire(string messageId, long mid)
+    {
+        if (_msgIndex.TryGetValue(messageId, out var exact)) return exact;
+        foreach (var kv in _msgIndex)
+            if (kv.Key.EndsWith(":" + mid, StringComparison.Ordinal)
+                || NapCatApiClient.ReadLong(kv.Value["napcatMessageId"]) == mid)
+                return kv.Value;
+        return null;
+    }
+
+    private static JsonArray BuildForwardEntries(IEnumerable<JsonObject?> sources)
+    {
+        var entries = new JsonArray();
+        foreach (var src in sources)
+        {
+            if (src == null) continue;
+            entries.Add(new JsonObject
+            {
+                ["senderName"] = NapCatApiClient.ReadStr(src["senderName"]),
+                ["text"] = string.IsNullOrEmpty(NapCatApiClient.ReadStr(src["text"])) ? "[消息]" : NapCatApiClient.ReadStr(src["text"]),
+                ["imagePath"] = NapCatApiClient.ReadStr(src["imagePath"]),
+            });
+        }
+        return entries;
     }
 
     private Task<(JsonNode? data, string? error)> CallForwardMsgAsync(char kind, long peer, JsonArray messages)
@@ -2053,6 +2365,10 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             var muted = isMuted ?? prev.Muted;
             prev.Pinned = pinned;
             prev.Muted = muted;
+            if (muted)
+                // Clearing only the row leaves the persisted pref.Unread intact;
+                // the next list refresh then resurrects the old badge via ApplyPrefsTo.
+                prev.Unread = 0;
             _convPrefs[conversationId] = prev;
             var conv = _conversations.FirstOrDefault(c => (string?)c["id"] == conversationId);
             if (conv != null)
@@ -2229,6 +2545,23 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         if (long.TryParse(messageId, out var direct)) return direct;
         var parts = messageId.Split(':');
         return parts.Length >= 2 && long.TryParse(parts[^1], out var mid) ? mid : 0;
+    }
+
+    private static DateTimeOffset? ParseWireTime(JsonObject wire)
+    {
+        var raw = NapCatApiClient.ReadStr(wire["time"]);
+        return DateTimeOffset.TryParse(raw, out var value) ? value : null;
+    }
+
+    /// <summary>Keep the server transcript chronologically ordered even when the
+    /// event stream delivers a delayed message after a newer one.</summary>
+    private static void InsertMessageInTimeOrder(List<JsonObject> list, JsonObject wire)
+    {
+        var time = NapCatApiClient.ReadStr(wire["time"]);
+        var index = list.FindIndex(existing =>
+            string.Compare(NapCatApiClient.ReadStr(existing["time"]), time, StringComparison.Ordinal) > 0);
+        if (index < 0) list.Add(wire);
+        else list.Insert(index, wire);
     }
 
 

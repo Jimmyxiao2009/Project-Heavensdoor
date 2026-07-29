@@ -67,7 +67,7 @@ namespace QQReborn.App.Views
             if (_remote == null || _vm.IsBusy) return;
             _vm.IsBusy = true;
             _vm.StatusText = "连接中…";
-            _vm.StatusDetailText = "";
+            _vm.StatusDetailText = "正在连接电脑网关并绑定 NapCat，请稍候…";
             try
             {
                 // NapCat local gateway: do not send a stale settings QQ number — empty

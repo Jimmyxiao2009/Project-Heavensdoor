@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -92,6 +93,22 @@ namespace QQReborn.App.ViewModels
                     byId[m.Id] = m;
             }
 
+            // A cold list has no visible position to preserve. Adding it in final order avoids
+            // a second pass that moves almost every item and blocks the UI on larger feeds.
+            if (Feed.Count == 0)
+            {
+                foreach (var f in fresh
+                    .Where(m => m != null && !string.IsNullOrEmpty(m.Id))
+                    .OrderByDescending(ParseMomentTime)
+                    .ThenByDescending(m => m.Id))
+                {
+                    Feed.Add(f);
+                    byId[f.Id] = f;
+                }
+                return;
+            }
+
+            var toReposition = new System.Collections.Generic.List<Moment>();
             foreach (var f in fresh)
             {
                 if (f == null || string.IsNullOrEmpty(f.Id)) continue;
@@ -99,44 +116,93 @@ namespace QQReborn.App.ViewModels
                 if (byId.TryGetValue(f.Id, out existing) && existing != null)
                 {
                     // Update fields in place so item containers are not recreated.
+                    var sortChanged = ParseMomentTime(existing) != ParseMomentTime(f);
                     existing.AuthorName = f.AuthorName;
                     existing.AuthorAvatarPath = f.AuthorAvatarPath;
                     existing.Text = f.Text;
                     existing.TimeText = f.TimeText;
+                    existing.Time = f.Time;
                     existing.VideoPath = f.VideoPath;
                     existing.LikeCount = f.LikeCount;
                     existing.IsLiked = f.IsLiked;
-                    existing.LikeCount = f.LikeCount;
                     existing.LikersText = f.LikersText;
-                    if (f.ImagePaths != null && f.ImagePaths.Count > 0)
+                    if (!SameImagePaths(existing.ImagePaths, f.ImagePaths))
                     {
                         existing.ImagePaths.Clear();
-                        foreach (var img in f.ImagePaths) existing.ImagePaths.Add(img);
+                        if (f.ImagePaths != null)
+                            foreach (var img in f.ImagePaths) existing.ImagePaths.Add(img);
                     }
-                    if (f.Comments != null && f.Comments.Count > 0)
+                    if (!SameComments(existing.Comments, f.Comments))
                     {
                         existing.Comments.Clear();
-                        foreach (var c in f.Comments) existing.Comments.Add(c);
+                        if (f.Comments != null)
+                            foreach (var c in f.Comments) existing.Comments.Add(c);
                         existing.RaiseCommentsChanged();
                     }
+                    if (sortChanged) toReposition.Add(existing);
                 }
                 else
                 {
                     Feed.Add(f);
                     byId[f.Id] = f;
+                    toReposition.Add(f);
                 }
             }
 
-            // Stable newest-first order. Prefer parsed time when available, then id.
-            var ordered = Feed
-                .OrderByDescending(m => ParseMomentTime(m))
-                .ThenByDescending(m => m != null ? m.Id : string.Empty)
-                .ToList();
-            for (int i = 0; i < ordered.Count; i++)
+            // Most refreshes only update likes/comments. Only posts whose timestamp changed
+            // (or newly arrived posts) need a Move notification and a ListView relayout.
+            foreach (var moment in toReposition.Distinct())
+                MoveMomentToSortedPosition(moment);
+        }
+
+        private void MoveMomentToSortedPosition(Moment moment)
+        {
+            if (moment == null) return;
+            var current = Feed.IndexOf(moment);
+            if (current < 0) return;
+
+            var target = 0;
+            foreach (var other in Feed)
             {
-                int current = Feed.IndexOf(ordered[i]);
-                if (current >= 0 && current != i) Feed.Move(current, i);
+                if (!object.ReferenceEquals(other, moment) && CompareMoments(other, moment) < 0)
+                    target++;
             }
+            if (current != target) Feed.Move(current, target);
+        }
+
+        private static int CompareMoments(Moment left, Moment right)
+        {
+            if (object.ReferenceEquals(left, right)) return 0;
+            if (left == null) return 1;
+            if (right == null) return -1;
+            var time = ParseMomentTime(right).CompareTo(ParseMomentTime(left));
+            return time != 0 ? time : string.Compare(right.Id, left.Id, StringComparison.Ordinal);
+        }
+
+        private static bool SameImagePaths(System.Collections.Generic.IList<string> left,
+            System.Collections.Generic.IList<string> right)
+        {
+            if (ReferenceEquals(left, right)) return true;
+            if (left == null || right == null) return left == null && right == null;
+            if (left.Count != right.Count) return false;
+            for (var i = 0; i < left.Count; i++)
+                if (!string.Equals(left[i], right[i], StringComparison.Ordinal)) return false;
+            return true;
+        }
+
+        private static bool SameComments(System.Collections.Generic.IList<MomentComment> left,
+            System.Collections.Generic.IList<MomentComment> right)
+        {
+            if (ReferenceEquals(left, right)) return true;
+            if (left == null || right == null) return left == null && right == null;
+            if (left.Count != right.Count) return false;
+            for (var i = 0; i < left.Count; i++)
+            {
+                if (!string.Equals(left[i]?.Author, right[i]?.Author, StringComparison.Ordinal)
+                    || !string.Equals(left[i]?.Text, right[i]?.Text, StringComparison.Ordinal))
+                    return false;
+            }
+            return true;
         }
 
         private static System.DateTimeOffset ParseMomentTime(Moment m)

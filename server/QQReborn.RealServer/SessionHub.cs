@@ -36,9 +36,14 @@ public sealed class SessionHub
         _connections.TryRemove(conn.Id, out _);
         if (conn.Session != null)
         {
-            conn.Session.Unsubscribe(conn);
-            // Keep the AccountSession alive for a while so a brief reconnect can re-bind;
-            // true GC of idle sessions is a later pass.
+            var session = conn.Session;
+            session.Unsubscribe(conn);
+            // There is no server-side resume token yet. Retaining an unbound NapCat
+            // backend would leave its event WebSocket running forever and every client
+            // reconnect would add another listener. The Shell restores its account on
+            // the fresh connection, so dispose the now-idle backend promptly.
+            if (session.IsEmpty && _sessions.TryRemove(session.Id, out var removed))
+                _ = DisposeBackendAsync(removed.Backend);
         }
         Console.WriteLine($"[Hub] -conn {conn.Id[..8]}… total={_connections.Count} sessions={_sessions.Count}");
     }
@@ -76,6 +81,13 @@ public sealed class SessionHub
         // Each session gets its own NapCat-backed backend instance.
         return BackendFactory.Create(_config);
     }
+
+    private static async Task DisposeBackendAsync(ISessionBackend backend)
+    {
+        if (backend is not IAsyncDisposable disposable) return;
+        try { await disposable.DisposeAsync(); }
+        catch (Exception ex) { Console.WriteLine("[Hub] backend dispose: " + ex.Message); }
+    }
 }
 
 /// <summary>One logged-in (or logging-in) QQ account on the server.</summary>
@@ -93,6 +105,11 @@ public sealed class AccountSession
         Id = id;
         Backend = backend;
         Backend.Broadcast += OnBackendBroadcast;
+    }
+
+    public bool IsEmpty
+    {
+        get { lock (_gate) return _subscribers.Count == 0; }
     }
 
     public void Subscribe(ClientConnection conn)
@@ -129,6 +146,9 @@ public sealed class ClientConnection
     public AccountSession? Session { get; set; }
 
     private readonly Func<string, Task> _sendAsync;
+    private readonly object _sendGate = new();
+    private readonly Queue<(string text, TaskCompletionSource<bool> completion)> _sendQueue = new();
+    private bool _sendLoopRunning;
 
     public ClientConnection(string id, WebSocket socket, Func<string, Task> sendAsync)
     {
@@ -139,7 +159,43 @@ public sealed class ClientConnection
 
     public Task SendSafeAsync(string text)
     {
-        try { return _sendAsync(text); }
-        catch { return Task.CompletedTask; }
+        // Broadcasts arrive from both the NapCat event loop and request handlers.
+        // Starting one fire-and-forget send per frame lets SemaphoreSlim scheduling
+        // reorder them, which is enough to make a fast burst look like a sync bug on
+        // the Shell. Drain a bounded-in-lifetime queue instead of chaining tasks (a
+        // long-running connection must not retain every previous frame).
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var startLoop = false;
+        lock (_sendGate)
+        {
+            _sendQueue.Enqueue((text, completion));
+            if (!_sendLoopRunning)
+            {
+                _sendLoopRunning = true;
+                startLoop = true;
+            }
+        }
+        if (startLoop) _ = DrainSendQueueAsync();
+        return completion.Task;
+    }
+
+    private async Task DrainSendQueueAsync()
+    {
+        while (true)
+        {
+            (string text, TaskCompletionSource<bool> completion) item;
+            lock (_sendGate)
+            {
+                if (_sendQueue.Count == 0)
+                {
+                    _sendLoopRunning = false;
+                    return;
+                }
+                item = _sendQueue.Dequeue();
+            }
+
+            try { await _sendAsync(item.text).ConfigureAwait(false); } catch { }
+            item.completion.TrySetResult(true);
+        }
     }
 }

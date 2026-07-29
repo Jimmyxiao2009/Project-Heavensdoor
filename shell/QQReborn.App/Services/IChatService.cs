@@ -41,7 +41,10 @@ namespace QQReborn.App.Services
 
         Task<ChatMessage> SendVoiceAsync(string conversationId, string audioPath, int seconds);
 
-        Task<ChatMessage> SendLocationAsync(string conversationId, string placeName, string address, string thumb);
+        Task<ChatMessage> SendLocationAsync(string conversationId, string placeName, string address, string thumb,
+            double latitude = 0, double longitude = 0);
+
+        Task<IReadOnlyList<string>> GetFavoriteStickersAsync();
 
         Task<IReadOnlyList<GroupMember>> GetGroupMembersAsync(string conversationId);
 
@@ -49,11 +52,13 @@ namespace QQReborn.App.Services
 
         Task<ChatMessage> ForwardMessageAsync(string targetConversationId, string messageId);
 
+        Task<ChatMessage> ForwardMessagesAsync(string targetConversationId, IReadOnlyList<string> messageIds);
+
         Task AcceptFriendRequestAsync(FriendRequest request);
 
         /// <summary>
         /// Set pin (置顶) and/or mute (消息免打扰) for a conversation. Pass null for a
-        /// flag to leave it unchanged. Returns the final values after the update.
+        /// flag to leave it unchanged. Completes after the bridge accepts the update.
         /// Local to the bridge (Lagrange has no public Tencent sync for these).
         /// </summary>
         Task SetConversationFlagsAsync(string conversationId, bool? isPinned, bool? isMuted);

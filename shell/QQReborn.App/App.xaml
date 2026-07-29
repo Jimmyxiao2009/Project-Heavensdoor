@@ -100,6 +100,13 @@
                 <Setter Property="Padding" Value="0" />
             </Style>
 
+            <!-- Keep every home Pivot section on the same content rhythm. -->
+            <Style x:Key="MetroPivotItemStyle" TargetType="PivotItem">
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Background" Value="Transparent" />
+            </Style>
+
             <!-- Large light pivot headers — classic WP pivot chrome -->
             <Style TargetType="PivotHeaderItem">
                 <Setter Property="FontSize" Value="42" />
@@ -121,6 +128,8 @@
                 <Setter Property="MinHeight" Value="0" />
                 <Setter Property="Margin" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="{StaticResource MetroSubtleBrush}" />
+                <Setter Property="BorderThickness" Value="0,0,0,1" />
             </Style>
 
             <Style x:Key="MetroListStyle" TargetType="ListView">
@@ -134,9 +143,18 @@
             <!-- Search chrome (tap-through bar) -->
             <Style x:Key="MetroSearchBarStyle" TargetType="Border">
                 <Setter Property="Background" Value="{StaticResource MetroPanelBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource MetroSubtleBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="MinHeight" Value="44" />
                 <Setter Property="Margin" Value="0,0,19,12" />
                 <Setter Property="Padding" Value="14,0,12,0" />
+            </Style>
+
+            <!-- A restrained outline for dense, related controls such as shortcuts and feed cards. -->
+            <Style x:Key="MetroSectionSurfaceStyle" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource MetroPanelBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource MetroSubtleBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
             </Style>
 
             <!-- Accent primary button -->

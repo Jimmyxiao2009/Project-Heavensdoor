@@ -179,6 +179,27 @@ public sealed class ServerProcessManager : IDisposable
         return false;
     }
 
+    /// <summary>
+    /// Stops the currently injected NTQQ/NapCat session and starts a fresh one
+    /// using the selected UIN. This is intentionally separate from StopAll so
+    /// stopping the gateway does not unexpectedly log the user out of QQ.
+    /// </summary>
+    public async Task<bool> RestartNapCatAsync(bool waitForOnline = true)
+    {
+        SaveSettings();
+        StopExistingNapCatProcesses();
+
+        // Let the old OneBot listener release port 3000 before launching the
+        // new injected process. A short bounded wait keeps the UI responsive.
+        for (var i = 0; i < 10; i++)
+        {
+            if (!await CheckNapCatAsync()) break;
+            await Task.Delay(300);
+        }
+
+        return await StartNapCatAsync(waitForOnline);
+    }
+
     public void EnsureNapCatConfigOnly()
     {
         try
@@ -241,6 +262,89 @@ public sealed class ServerProcessManager : IDisposable
     {
         StopOne(ref _realServer, "RealServer");
         // Do not kill NapCat/QQ by default — user may still need the session.
+    }
+
+    private void StopExistingNapCatProcesses()
+    {
+        var qqExe = NapCatLauncher.FindNtqqExe();
+        var qqPath = qqExe == null ? null : Path.GetFullPath(qqExe);
+        var stopped = 0;
+        var qqProcesses = new List<Process>();
+
+        foreach (var p in Process.GetProcessesByName("QQ"))
+        {
+            try
+            {
+                var path = p.MainModule?.FileName;
+                if (qqPath == null || path == null || !string.Equals(Path.GetFullPath(path), qqPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    p.Dispose();
+                    continue;
+                }
+
+                qqProcesses.Add(p);
+            }
+            catch
+            {
+                try { p.Dispose(); } catch { }
+            }
+        }
+
+        // Kill the oldest matching process first. It is the NTQQ root; its child GPU/
+        // utility processes then exit as part of the same process-tree operation. The old
+        // implementation iterated children after the root and produced noisy
+        // ReadProcessMemory errors for handles that had already become stale.
+        foreach (var p in qqProcesses.OrderBy(GetProcessStartTime))
+        {
+            try
+            {
+                if (!p.HasExited)
+                {
+                    Append($"关闭旧 NTQQ/NapCat 会话 (pid={p.Id})…");
+                    p.Kill(entireProcessTree: true);
+                    p.WaitForExit(5000);
+                    stopped++;
+                }
+            }
+            catch (Exception ex)
+            {
+                Append($"关闭 NTQQ 进程失败 (pid={p.Id}): {ex.Message}");
+            }
+            finally
+            {
+                try { p.Dispose(); } catch { }
+            }
+        }
+
+        foreach (var p in Process.GetProcessesByName("NapCatWinBootMain"))
+        {
+            try
+            {
+                if (!p.HasExited)
+                {
+                    Append($"关闭 NapCat 启动器 (pid={p.Id})…");
+                    p.Kill(entireProcessTree: true);
+                    p.WaitForExit(5000);
+                    stopped++;
+                }
+            }
+            catch (Exception ex)
+            {
+                Append($"关闭 NapCat 启动器失败 (pid={p.Id}): {ex.Message}");
+            }
+            finally
+            {
+                try { p.Dispose(); } catch { }
+            }
+        }
+
+        Append(stopped == 0 ? "未找到可重启的 NTQQ/NapCat 进程。" : $"已关闭 {stopped} 个 NTQQ/NapCat 进程。 ");
+    }
+
+    private static DateTime GetProcessStartTime(Process process)
+    {
+        try { return process.StartTime; }
+        catch { return DateTime.MaxValue; }
     }
 
     private Process StartCaptured(ProcessStartInfo psi)

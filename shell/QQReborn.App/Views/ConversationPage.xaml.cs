@@ -51,6 +51,10 @@ namespace QQReborn.App.Views
         // after the await and skips any further UI work on what is now a dead page -- see the
         // OnNavigatedTo/OnNavigatedFrom race explained below.
         private bool _hasLeft;
+        // A busy group can deliver several messageReceived frames in one dispatcher turn.
+        // Coalesce the follow-up ScrollIntoView calls so each frame is appended once without
+        // forcing the ListView to measure and reposition repeatedly.
+        private bool _scrollQueued;
 
         private bool _multiSelectMode;
 
@@ -73,6 +77,7 @@ namespace QQReborn.App.Views
         {
             base.OnNavigatedTo(e);
             _hasLeft = false; // this instance is on screen again (fresh nav or cached reuse)
+            _scrollQueued = false;
 
             // Re-read the chat background every time so returning from the picker applies it.
             ApplyChatBackground();
@@ -104,6 +109,7 @@ namespace QQReborn.App.Views
             // the reload is skipped; it appears with the next push or the next fresh entry.
             // That small window is the cost of preserving the in-progress state.
             var conv = e.Parameter as ChatConversation;
+            if (conv != null) App.RememberConversation(conv);
             bool needLoad = conv != null
                 && (e.NavigationMode != NavigationMode.Back || conv.Id != _vm.ConversationId || _vm.Conversation == null);
 
@@ -236,10 +242,12 @@ namespace QQReborn.App.Views
 
         private async void OnMessageReceived(object sender, ChatMessage msg)
         {
+            if (msg == null || msg.ConversationId != _vm.ConversationId) return;
             await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
             {
+                if (_hasLeft) return;
                 _vm.OnIncoming(msg);
-                ScrollToBottom();
+                QueueScrollToBottom();
             });
 
             // Live messages for the open chat: keep badges at 0 for messages already seen.
@@ -278,6 +286,17 @@ namespace QQReborn.App.Views
         private void ScrollToBottom()
         {
             if (_vm.Messages.Count > 0) MessageList.ScrollIntoView(_vm.Messages[_vm.Messages.Count - 1]);
+        }
+
+        private void QueueScrollToBottom()
+        {
+            if (_hasLeft || _scrollQueued) return;
+            _scrollQueued = true;
+            var ignored = Dispatcher.RunAsync(CoreDispatcherPriority.Low, () =>
+            {
+                _scrollQueued = false;
+                if (!_hasLeft) ScrollToBottom();
+            });
         }
 
         private async void SendButton_Click(object sender, RoutedEventArgs e)
@@ -433,19 +452,15 @@ namespace QQReborn.App.Views
             if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
             var target = list.SelectedItem as ChatConversation;
             if (target == null) return;
-            int ok = 0;
-            foreach (var m in selected)
+            try
             {
-                try
-                {
-                    var sent = await _chat.ForwardMessageAsync(target.Id, m.Id);
-                    if (sent != null) ok++;
-                    if (target.Id == _vm.ConversationId && sent != null)
-                        _vm.AppendForwarded(sent);
-                }
-                catch { }
+                var sent = await _chat.ForwardMessagesAsync(target.Id,
+                    selected.Select(m => m.Id).Where(id => !string.IsNullOrEmpty(id)).ToList());
+                if (target.Id == _vm.ConversationId && sent != null)
+                    _vm.AppendForwarded(sent);
+                _vm.AppendSystem(sent != null ? ("已合并转发 " + selected.Count + " 条") : "转发失败");
             }
-            _vm.AppendSystem(ok > 0 ? ("已转发 " + ok + " 条") : "转发失败");
+            catch { _vm.AppendSystem("转发失败"); }
             ScrollToBottom();
             ExitMultiSelectMode();
         }
@@ -614,27 +629,30 @@ namespace QQReborn.App.Views
         private async void LocationButton_Click(object sender, RoutedEventArgs e)
         {
             string address;
+            double latitude;
+            double longitude;
             try
             {
                 var access = await Windows.Devices.Geolocation.Geolocator.RequestAccessAsync();
-                if (access == Windows.Devices.Geolocation.GeolocationAccessStatus.Allowed)
+                if (access != Windows.Devices.Geolocation.GeolocationAccessStatus.Allowed)
                 {
-                    var geo = new Windows.Devices.Geolocation.Geolocator { DesiredAccuracyInMeters = 100 };
-                    var pos = await geo.GetGeopositionAsync();
-                    var p = pos.Coordinate.Point.Position;
-                    address = "纬度 " + p.Latitude.ToString("F5") + ", 经度 " + p.Longitude.ToString("F5");
+                    await new MessageDialog("系统没有授予定位权限，无法发送真实位置。", "发送位置").ShowAsync();
+                    return;
                 }
-                else
-                {
-                    address = "深圳市南山区 (未授权定位，演示位置)";
-                }
+                var geo = new Windows.Devices.Geolocation.Geolocator { DesiredAccuracyInMeters = 100 };
+                var pos = await geo.GetGeopositionAsync();
+                var p = pos.Coordinate.Point.Position;
+                latitude = p.Latitude;
+                longitude = p.Longitude;
+                address = "纬度 " + latitude.ToString("F5") + ", 经度 " + longitude.ToString("F5");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                address = "深圳市南山区 (定位不可用，演示位置)";
+                await new MessageDialog("无法获取当前位置：" + ex.Message, "发送位置").ShowAsync();
+                return;
             }
 
-            await _vm.SendLocationAsync("我的位置", address, "ms-appx:///Assets/Wide310x150Logo.scale-200.png");
+            await _vm.SendLocationAsync("我的位置", address, null, latitude, longitude);
             ScrollToBottom();
         }
 
@@ -731,25 +749,45 @@ namespace QQReborn.App.Views
             picker.FileTypeFilter.Add(".jpeg");
             picker.FileTypeFilter.Add(".png");
             picker.FileTypeFilter.Add(".gif");
-            var file = await picker.PickSingleFileAsync();
-            if (file == null) return;
-
-            StorageFile copy;
+            picker.FileTypeFilter.Add(".webp");
+            IReadOnlyList<StorageFile> files;
             try
             {
-                copy = await file.CopyAsync(ApplicationData.Current.LocalFolder, "img_" + Guid.NewGuid().ToString("N") + file.FileType, NameCollisionOption.GenerateUniqueName);
+                files = await picker.PickMultipleFilesAsync();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Local file-system failure copying the picked image into LocalFolder --
-                // nothing was sent, so just tell the user rather than letting this async void
-                // handler's exception escape and kill the app.
-                _vm.AppendSystem("发送失败：图片读取失败");
+                _vm.AppendSystem("选择图片失败：" + ex.Message);
                 ScrollToBottom();
                 return;
             }
-            // Stage for 图文混排: type caption then press 发送 (or send image-only with empty draft).
-            _vm.AttachPendingImage("ms-appdata:///local/" + copy.Name);
+            if (files == null || files.Count == 0) return;
+
+            var attached = 0;
+            foreach (var file in files)
+            {
+                if (attached >= 9) break;
+                try
+                {
+                    var copy = await file.CopyAsync(
+                        ApplicationData.Current.LocalFolder,
+                        "img_" + Guid.NewGuid().ToString("N") + file.FileType,
+                        NameCollisionOption.GenerateUniqueName);
+                    // Stage for 图文混排: type a caption and press 发送. An empty caption
+                    // sends an image-only message, so picking an image never silently drops it.
+                    _vm.AttachPendingImage("ms-appdata:///local/" + copy.Name);
+                    attached++;
+                }
+                catch (Exception)
+                {
+                    // A single unreadable file should not discard the other selected images.
+                }
+            }
+            if (attached == 0)
+            {
+                _vm.AppendSystem("发送失败：图片读取失败");
+                ScrollToBottom();
+            }
         }
 
         private void RemovePendingImage_Click(object sender, RoutedEventArgs e)
@@ -1139,6 +1177,27 @@ namespace QQReborn.App.Views
             finally
             {
                 _resolvingVoice = false;
+            }
+        }
+
+        private async void Forward_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            if (!((sender as FrameworkElement)?.DataContext is ChatMessage message)) return;
+            try
+            {
+                if (message.ForwardEntries.Count == 0 && _chat is RemoteChatService remote)
+                {
+                    var details = await remote.GetForwardDetailsAsync(message.Id);
+                    foreach (var item in details) message.ForwardEntries.Add(item);
+                }
+                var text = message.ForwardEntries.Count == 0
+                    ? (message.Text ?? "没有可显示的转发内容")
+                    : string.Join("\n", message.ForwardEntries.Select(x => x.DisplayText));
+                await new MessageDialog(text, "合并转发").ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                await new MessageDialog("无法读取转发内容：" + ex.Message, "合并转发").ShowAsync();
             }
         }
 
@@ -1589,15 +1648,5 @@ namespace QQReborn.App.Views
             }
         }
 
-        private static string ForwardSummary(ChatMessage m)
-        {
-            if (m.IsImage) return "[图片]";
-            if (m.IsSticker) return "[表情]";
-            if (m.IsVoice) return "[语音]";
-            if (m.IsLinkCard) return m.LinkTitle ?? "[链接]";
-            if (m.IsFile) return "[文件] " + (m.FileName ?? string.Empty);
-            if (m.IsLocation) return "[位置] " + (m.PlaceName ?? string.Empty);
-            return m.Text ?? string.Empty;
-        }
     }
 }

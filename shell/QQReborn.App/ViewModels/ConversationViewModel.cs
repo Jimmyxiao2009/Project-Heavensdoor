@@ -52,13 +52,42 @@ namespace QQReborn.App.ViewModels
             set { if (Set(ref _draft, value)) RaisePropertyChanged(nameof(CanSend)); }
         }
 
+        private bool _isLoading;
+        /// <summary>True while the initial transcript or a fresh remote snapshot is loading.</summary>
+        public bool IsLoading
+        {
+            get => _isLoading;
+            private set => Set(ref _isLoading, value);
+        }
+
+        private string _loadingText = "正在加载消息…";
+        public string LoadingText
+        {
+            get => _loadingText;
+            private set => Set(ref _loadingText, value);
+        }
+
+        private bool _isSending;
+        public bool IsSending
+        {
+            get => _isSending;
+            private set
+            {
+                if (!Set(ref _isSending, value)) return;
+                RaisePropertyChanged(nameof(CanSend));
+                RaisePropertyChanged(nameof(SendButtonText));
+            }
+        }
+
+        public string SendButtonText => IsSending ? "发送中…" : "发送";
+
         /// <summary>Images staged for the next send (图文混排). Filled by the image picker;
         /// cleared after a successful or failed send attempt that consumed them.</summary>
         public ObservableCollection<string> PendingImages { get; } = new ObservableCollection<string>();
 
         public bool HasPendingImages => PendingImages.Count > 0;
 
-        public bool CanSend => !string.IsNullOrWhiteSpace(_draft) || PendingImages.Count > 0;
+        public bool CanSend => !IsSending && (!string.IsNullOrWhiteSpace(_draft) || PendingImages.Count > 0);
 
         public void AttachPendingImage(string imagePath)
         {
@@ -93,6 +122,7 @@ namespace QQReborn.App.ViewModels
         // ---- load earlier history ----
         private const int MaxEarlierLoads = 2;
         private int _earlierLoadCount;
+        private int _loadGeneration;
         // Guards against a second tap re-entering LoadEarlierAsync while a fetch (mock delay
         // or the remote round-trip) is still in flight -- the strip stays visible/tappable
         // while CanLoadEarlier is true, so without this a fast double-tap would fire two
@@ -138,15 +168,7 @@ namespace QQReborn.App.ViewModels
 
         public static string ContentSummary(ChatMessage m)
         {
-            if (m == null) return string.Empty;
-            if (m.IsImage) return "[图片]";
-            if (m.IsSticker) return "[表情]";
-            if (m.IsVoice) return "[语音]";
-            if (m.IsVideo) return "[视频]";
-            if (m.IsLinkCard) return "[链接]";
-            if (m.IsFile) return "[文件]";
-            if (m.IsLocation) return "[位置]";
-            return m.Text ?? string.Empty;
+            return MessagePresentation.GetSummary(m);
         }
 
         /// <summary>Plain-text export of one bubble (for clipboard / multi-copy).</summary>
@@ -236,6 +258,30 @@ namespace QQReborn.App.ViewModels
 
         public void ClearReplyTarget() => ReplyTarget = null;
 
+        /// <summary>
+        /// A cached conversation page reuses this view model. Composer state must never cross
+        /// into another conversation, otherwise an old draft, attachment, or @ metadata can be
+        /// sent to the wrong recipient.
+        /// </summary>
+        private void ResetComposerForConversationChange()
+        {
+            Draft = string.Empty;
+            ClearPendingImages();
+            PendingMentions.Clear();
+            ClearReplyTarget();
+            IsPeerTyping = false;
+        }
+
+        private bool IsCurrentConversation(string conversationId)
+        {
+            return string.Equals(ConversationId, conversationId, StringComparison.Ordinal);
+        }
+
+        private bool IsCurrentLoad(int loadGeneration, string conversationId)
+        {
+            return _loadGeneration == loadGeneration && IsCurrentConversation(conversationId);
+        }
+
         /// <summary>Common emoji for the picker panel.</summary>
         public string[] Emojis { get; } =
         {
@@ -252,10 +298,15 @@ namespace QQReborn.App.ViewModels
 
         public async Task LoadAsync(string conversationId, string title, bool isGroup)
         {
+            var loadGeneration = ++_loadGeneration;
+            IsLoading = true;
+            LoadingText = "正在加载消息…";
+            if (!IsCurrentConversation(conversationId))
+                ResetComposerForConversationChange();
+
             ConversationId = conversationId;
             Title = title;
             IsGroup = isGroup;
-            ReplyTarget = null;
 
             // Reset "load earlier history" state for the freshly opened conversation.
             // Mock: fabricates history, capped at MaxEarlierLoads.
@@ -281,6 +332,7 @@ namespace QQReborn.App.ViewModels
             Messages.Clear();
 
             var localMsgs = await MessageCache.LoadMessagesAsync(conversationId);
+            if (!IsCurrentLoad(loadGeneration, conversationId)) return;
             bool needFetch = true;
             if (localMsgs.Count > 0 && Conversation != null)
             {
@@ -295,12 +347,14 @@ namespace QQReborn.App.ViewModels
             
             if (needFetch)
             {
+                LoadingText = localMsgs.Count > 0 ? "正在同步最新消息…" : "正在从网关加载消息…";
                 try
                 {
                     msgs = await _chat.GetMessagesAsync(conversationId);
                 }
                 catch (Exception)
                 {
+                    if (!IsCurrentLoad(loadGeneration, conversationId)) return;
                     // Remote backend unreachable/timed out. Keep whatever raced in live for this
                     // conversation while we awaited (if anything) and surface a visible system
                     // notice instead of letting the exception escape into the page's async-void
@@ -317,11 +371,15 @@ namespace QQReborn.App.ViewModels
                     UpdateReadState();
                     AppendSystem("无法加载消息记录（服务器未连接）");
                     if (Stickers.Count == 0) await LoadStickersAsync();
+                    if (!IsCurrentLoad(loadGeneration, conversationId)) return;
                     // Keep the strip so the user can retry once the bridge is back.
                     CanLoadEarlier = _chat is RemoteChatService || _chat is MockChatService;
+                    IsLoading = false;
                     return;
                 }
             }
+
+            if (!IsCurrentLoad(loadGeneration, conversationId)) return;
 
             // Snapshot AFTER the await returns: Messages was cleared above, so anything in it
             // now is a live OnIncoming() push that arrived for conversationId while
@@ -380,6 +438,7 @@ namespace QQReborn.App.ViewModels
             CanLoadEarlier = true;
 
             if (Stickers.Count == 0) await LoadStickersAsync();
+            IsLoading = false;
         }
 
         /// <summary>
@@ -412,13 +471,18 @@ namespace QQReborn.App.ViewModels
         public async Task LoadEarlierAsync()
         {
             if (!CanLoadEarlier || _loadingEarlier) return;
+            var loadGeneration = _loadGeneration;
+            var conversationId = ConversationId;
             _loadingEarlier = true;
             try
             {
-                if (_chat is RemoteChatService remote) await LoadEarlierRemoteAsync(remote);
+                if (_chat is RemoteChatService remote) await LoadEarlierRemoteAsync(remote, conversationId, loadGeneration);
                 else await LoadEarlierMockAsync();
             }
-            finally { _loadingEarlier = false; }
+            finally
+            {
+                if (IsCurrentLoad(loadGeneration, conversationId)) _loadingEarlier = false;
+            }
         }
 
         /// <summary>
@@ -478,7 +542,7 @@ namespace QQReborn.App.ViewModels
         /// the server's history and have no id the server would recognize), fetches one page
         /// older, de-dupes against what's already shown, and prepends it.
         /// </summary>
-        private async Task LoadEarlierRemoteAsync(RemoteChatService remote)
+        private async Task LoadEarlierRemoteAsync(RemoteChatService remote, string conversationId, int loadGeneration)
         {
             // Prefer the oldest real message as the page-before anchor. If the chat is empty
             // (or only system notices), pass null so the server pulls the newest cloud page
@@ -489,16 +553,19 @@ namespace QQReborn.App.ViewModels
             EarlierMessagesResult result;
             try
             {
-                result = await remote.GetEarlierMessagesAsync(ConversationId, beforeId, 20);
+                result = await remote.GetEarlierMessagesAsync(conversationId, beforeId, 20);
             }
             catch (Exception ex)
             {
+                if (!IsCurrentLoad(loadGeneration, conversationId)) return;
                 // Keep the strip up so the user can retry (transient network blip); nothing
                 // in Messages changed, so there's nothing to roll back.
                 var detail = string.IsNullOrEmpty(ex.Message) ? "请稍后重试" : ex.Message;
                 AppendSystem("加载历史消息失败（" + detail + "）");
                 return;
             }
+
+            if (!IsCurrentLoad(loadGeneration, conversationId)) return;
 
             var older = result != null ? result.Messages : null;
             if (older == null || older.Count == 0)
@@ -575,6 +642,17 @@ namespace QQReborn.App.ViewModels
         {
             try
             {
+                if (_chat is RemoteChatService remote)
+                {
+                    try
+                    {
+                        var remoteStickers = await remote.GetFavoriteStickersAsync();
+                        foreach (var sticker in remoteStickers)
+                            if (!string.IsNullOrEmpty(sticker) && !Stickers.Contains(sticker))
+                                Stickers.Add(sticker);
+                    }
+                    catch { }
+                }
                 var assets = await Package.Current.InstalledLocation.GetFolderAsync("Assets");
                 var folder = await assets.GetFolderAsync("Emoticons");
                 var files = await folder.GetFilesAsync();
@@ -585,7 +663,7 @@ namespace QQReborn.App.ViewModels
             }
             catch
             {
-                // No stickers bundled; panel stays empty.
+                // The bundled set remains usable when NapCat is offline.
             }
         }
 
@@ -657,8 +735,11 @@ namespace QQReborn.App.ViewModels
         public async Task SendAsync()
         {
             if (!CanSend) return;
+            IsSending = true;
+            var conversationId = ConversationId;
             var text = (_draft ?? string.Empty).Trim();
             var images = new System.Collections.Generic.List<string>(PendingImages);
+            var mentions = new System.Collections.Generic.List<MentionInfo>(PendingMentions);
             var replyTarget = _replyTarget;
             // Clear optimistically for a snappy UI, but restore draft/images if the send fails
             // (e.g. the remote backend timed out / dropped) so the user doesn't lose typing.
@@ -666,10 +747,10 @@ namespace QQReborn.App.ViewModels
             ClearPendingImages();
 
             string mentionsJson = null;
-            if (PendingMentions.Count > 0)
+            if (mentions.Count > 0)
             {
                 var arr = new Windows.Data.Json.JsonArray();
-                foreach (var m in PendingMentions)
+                foreach (var m in mentions)
                 {
                     var o = new Windows.Data.Json.JsonObject();
                     o["uin"] = Windows.Data.Json.JsonValue.CreateNumberValue(m.Uin);
@@ -687,7 +768,7 @@ namespace QQReborn.App.ViewModels
                 {
                     // One protocol message: optional caption + 1..N images (图文混排).
                     sent = await _chat.SendMixedAsync(
-                        ConversationId,
+                        conversationId,
                         text,
                         images,
                         replyTarget != null ? replyTarget.Id : null,
@@ -698,21 +779,30 @@ namespace QQReborn.App.ViewModels
                     // Against a real/remote backend, embed an actual reply-quote in the protocol
                     // message (so the recipient's real client sees it and it survives a reload)
                     // instead of just stamping it on our own local copy after the fact.
-                    sent = await remote.SendTextWithReplyAsync(ConversationId, text, replyTarget.Id, mentionsJson);
+                    sent = await remote.SendTextWithReplyAsync(conversationId, text, replyTarget.Id, mentionsJson);
                 }
                 else
                 {
-                    sent = await _chat.SendTextAsync(ConversationId, text, mentionsJson);
+                    sent = await _chat.SendTextAsync(conversationId, text, mentionsJson);
                 }
+                if (!IsCurrentConversation(conversationId)) return;
                 ApplyReplyTarget(sent, replyTarget);
                 Append(sent);
             }
             catch (Exception ex)
             {
-                if (string.IsNullOrEmpty(_draft)) Draft = text;
-                if (images.Count > 0 && PendingImages.Count == 0)
+                if (!IsCurrentConversation(conversationId)) return;
+
+                // A user can start another message while the request is pending. Only restore
+                // the failed composer snapshot when that newer input has not changed it.
+                bool composerChangedWhileSending = !string.IsNullOrEmpty(_draft)
+                    || PendingImages.Count > 0
+                    || PendingMentions.Count > 0;
+                if (!composerChangedWhileSending)
                 {
+                    Draft = text;
                     foreach (var p in images) AttachPendingImage(p);
+                    PendingMentions.AddRange(mentions);
                 }
                 // Surface the real reason (e.g. sign 401 / seq=0 / not-online) instead of a
                 // silent draft restore that looks like "can't send to groups".
@@ -724,6 +814,10 @@ namespace QQReborn.App.ViewModels
                     AppendSystem(detail);
                 else
                     AppendSystem("发送失败（" + detail + "）");
+            }
+            finally
+            {
+                IsSending = false;
             }
         }
 
@@ -770,11 +864,12 @@ namespace QQReborn.App.ViewModels
             }
         }
 
-        public async Task SendLocationAsync(string placeName, string address, string thumb)
+        public async Task SendLocationAsync(string placeName, string address, string thumb,
+            double latitude = 0, double longitude = 0)
         {
             try
             {
-                var sent = await _chat.SendLocationAsync(ConversationId, placeName, address, thumb);
+                var sent = await _chat.SendLocationAsync(ConversationId, placeName, address, thumb, latitude, longitude);
                 ApplyReplyTarget(sent, _replyTarget);
                 Append(sent);
             }

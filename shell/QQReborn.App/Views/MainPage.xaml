@@ -26,6 +26,23 @@
     </Page.BottomAppBar>
 
     <Page.Resources>
+        <CollectionViewSource x:Key="ContactGroupsView"
+                              Source="{Binding ContactGroups}"
+                              IsSourceGrouped="True" />
+
+        <Style x:Key="ContactAlphabetButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource MetroAccentBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
         <!-- Conversation row — square avatar, Metro list rhythm -->
         <DataTemplate x:Key="ConversationItemTemplate" x:DataType="models:ChatConversation">
             <Grid Height="80" Margin="0,0,19,0"
@@ -141,7 +158,7 @@
                    Style="{StaticResource MetroPivotStyle}"
                    Margin="19,4,0,0">
 
-                <PivotItem Header="消息" Margin="0">
+                <PivotItem Header="消息" Style="{StaticResource MetroPivotItemStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -165,69 +182,150 @@
                     </Grid>
                 </PivotItem>
 
-                <PivotItem Header="联系人" Margin="0">
+                <PivotItem Header="联系人" Style="{StaticResource MetroPivotItemStyle}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel Grid.Row="0" Margin="0,0,0,6">
-                            <Grid Height="72" Margin="0,0,19,0" Background="Transparent"
-                                  Tapped="NewFriends_Tapped">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="52" Height="52" VerticalAlignment="Center"
-                                        Background="{StaticResource MetroAccentBrush}">
-                                    <FontIcon Glyph="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="24"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              Foreground="White" />
-                                </Border>
-                                <TextBlock Grid.Column="1" Text="新朋友" FontSize="19" FontWeight="SemiLight"
-                                           VerticalAlignment="Center" Margin="14,0,0,0"
-                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                                <TextBlock Grid.Column="2" Text="&#x203A;" FontSize="22" VerticalAlignment="Center"
-                                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                            </Grid>
-                            <Grid Height="72" Margin="0,0,19,0" Background="Transparent"
-                                  Tapped="GroupNotifications_Tapped">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Width="52" Height="52" VerticalAlignment="Center"
-                                        Background="{StaticResource MetroPanelBrush}">
-                                    <FontIcon Glyph="&#xE7E7;" FontFamily="Segoe MDL2 Assets" FontSize="24"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                                </Border>
-                                <TextBlock Grid.Column="1" Text="群通知" FontSize="19" FontWeight="SemiLight"
-                                           VerticalAlignment="Center" Margin="14,0,0,0"
-                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                                <TextBlock Grid.Column="2" Text="&#x203A;" FontSize="22" VerticalAlignment="Center"
-                                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                            </Grid>
-                            <Border Height="1" Background="{StaticResource MetroSubtleBrush}"
-                                    Margin="0,4,19,8" />
-                        </StackPanel>
+                        <Border Grid.Row="0" Style="{StaticResource MetroSectionSurfaceStyle}" Margin="0,0,19,12">
+                            <StackPanel>
+                                <Grid Height="72" Background="Transparent" Tapped="NewFriends_Tapped">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="52" Height="52" VerticalAlignment="Center"
+                                            Background="{StaticResource MetroAccentBrush}">
+                                        <FontIcon Glyph="&#xE716;" FontFamily="Segoe MDL2 Assets" FontSize="24"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Foreground="White" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="新朋友" FontSize="19" FontWeight="SemiLight"
+                                               VerticalAlignment="Center" Margin="14,0,0,0"
+                                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                    <TextBlock Grid.Column="2" Text="&#x203A;" FontSize="22" VerticalAlignment="Center"
+                                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                                </Grid>
+                                <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="14,0" />
+                                <Grid Height="72" Background="Transparent" Tapped="GroupNotifications_Tapped">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="52" Height="52" VerticalAlignment="Center"
+                                            Background="{StaticResource MetroChromeBrush}">
+                                        <FontIcon Glyph="&#xE7E7;" FontFamily="Segoe MDL2 Assets" FontSize="24"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1" Text="群通知" FontSize="19" FontWeight="SemiLight"
+                                               VerticalAlignment="Center" Margin="14,0,0,0"
+                                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                    <TextBlock Grid.Column="2" Text="&#x203A;" FontSize="22" VerticalAlignment="Center"
+                                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
-                        <ListView Grid.Row="1" x:Name="ContactList"
-                                  ItemsSource="{Binding Contacts}"
-                                  ItemTemplate="{StaticResource ContactItemTemplate}"
-                                  Style="{StaticResource MetroListStyle}"
-                                  ItemClick="ContactList_ItemClick" />
+                        <Grid Grid.Row="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="30" />
+                            </Grid.ColumnDefinitions>
+
+                            <ListView Grid.Column="0" x:Name="ContactList"
+                                      ItemsSource="{Binding Source={StaticResource ContactGroupsView}}"
+                                      ItemTemplate="{StaticResource ContactItemTemplate}"
+                                      Style="{StaticResource MetroListStyle}"
+                                      ItemClick="ContactList_ItemClick">
+                                <ListView.GroupStyle>
+                                    <GroupStyle>
+                                        <GroupStyle.HeaderTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Key}" FontSize="16" FontWeight="SemiLight"
+                                                           Margin="0,14,19,4"
+                                                           Foreground="{StaticResource MetroAccentBrush}" />
+                                            </DataTemplate>
+                                        </GroupStyle.HeaderTemplate>
+                                    </GroupStyle>
+                                </ListView.GroupStyle>
+                            </ListView>
+
+                            <!-- Start-menu style quick index. Disabled letters remain visible so
+                                 the alphabet keeps a stable position while contacts load. -->
+                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Hidden"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalAlignment="Center">
+                                <StackPanel x:Name="ContactAlphabetBar" HorizontalAlignment="Center">
+                                    <Button Content="#" Tag="#" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="A" Tag="A" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="B" Tag="B" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="C" Tag="C" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="D" Tag="D" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="E" Tag="E" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="F" Tag="F" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="G" Tag="G" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="H" Tag="H" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="I" Tag="I" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="J" Tag="J" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="K" Tag="K" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="L" Tag="L" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="M" Tag="M" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="N" Tag="N" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="O" Tag="O" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="P" Tag="P" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="Q" Tag="Q" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="R" Tag="R" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="S" Tag="S" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="T" Tag="T" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="U" Tag="U" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="V" Tag="V" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="W" Tag="W" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="X" Tag="X" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="Y" Tag="Y" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                    <Button Content="Z" Tag="Z" Style="{StaticResource ContactAlphabetButtonStyle}"
+                                            Click="ContactAlphabet_Click" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
                     </Grid>
                 </PivotItem>
 
-                <PivotItem Header="动态" Margin="0">
+                <PivotItem Header="动态" Style="{StaticResource MetroPivotItemStyle}">
                     <views:MomentsView />
                 </PivotItem>
 
-                <PivotItem Header="我" Margin="0">
+                <PivotItem Header="我" Style="{StaticResource MetroPivotItemStyle}">
                     <views:ProfileView />
                 </PivotItem>
             </Pivot>

@@ -30,6 +30,8 @@ public interface ISessionBackend
     Task<(JsonObject? data, string? error)> SetAvatarAsync(string imageBase64);
     Task<(JsonObject? data, string? error)> GetMediaUrlAsync(string messageId);
     Task<(JsonObject? data, string? error)> GetVoicePlayableAsync(string messageId);
+    Task<(JsonObject? data, string? error)> GetFavoriteStickersAsync(int count);
+    Task<(JsonObject? data, string? error)> GetForwardDetailsAsync(string messageId);
     Task<(JsonObject? data, string? error)> GetFileDownloadUrlAsync(string conversationId, string fileId);
     Task<(JsonObject? data, string? error)> GetGroupNotificationsAsync();
     Task<(JsonObject? data, string? error)> HandleGroupNotificationAsync(
@@ -39,6 +41,7 @@ public interface ISessionBackend
 
     JsonObject GetSpaceFeed();
     JsonObject SetSpaceLike(string momentId, bool isLiked);
+    JsonObject SetSpaceComment(string momentId, string text);
     JsonObject IngestSpaceWebhook(JsonNode? body);
     Task FetchQzoneFeedNativeAsync();
     Task<JsonObject> FetchEarlierSpaceFeedAsync(int num = 20);
@@ -47,9 +50,11 @@ public interface ISessionBackend
         string conversationId, string text, string? replyToId = null,
         string contentType = "Text", string? placeName = null, string? address = null, string? thumb = null,
         string? imageBase64 = null, JsonNode? imagesBase64Node = null, string? audioBase64 = null, int voiceSeconds = 0,
-        string? fileBase64 = null, string? fileName = null, string? mentionsJson = null);
+        string? fileBase64 = null, string? fileName = null, string? mentionsJson = null,
+        double latitude = 0, double longitude = 0);
 
     Task<(JsonObject? data, string? error)> ForwardAsync(string conversationId, string messageId);
+    Task<(JsonObject? data, string? error)> ForwardManyAsync(string conversationId, JsonArray messageIds);
     JsonObject SetConversationFlags(string conversationId, bool? isPinned, bool? isMuted);
     JsonObject MarkConversationRead(string conversationId, string? lastReadAt = null);
     Task<(JsonObject? data, string? error)> GroupRenameAsync(string conversationId, string newName);

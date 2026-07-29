@@ -43,15 +43,20 @@ namespace QQReborn.App.Services
         {
             try
             {
-                var folder = ApplicationData.Current.LocalFolder;
-                var fileName = "messages_" + Sanitize(conversationId) + ".json";
-                var file = await folder.CreateFileAsync(fileName, CreationCollisionOption.ReplaceExisting);
+                // Materialize the collection before the first await. Callers often pass a
+                // bound ObservableCollection that can be cleared/repopulated when a cached
+                // conversation page switches chats; enumerating it after file creation could
+                // otherwise write the new chat's messages into the old chat's cache file.
                 var dtos = new List<ChatMessageDto>();
                 foreach (var m in messages)
                 {
                     if (m == null || m.IsSystem) continue;
                     dtos.Add(ChatMessageDto.From(m));
                 }
+
+                var folder = ApplicationData.Current.LocalFolder;
+                var fileName = "messages_" + Sanitize(conversationId) + ".json";
+                var file = await folder.CreateFileAsync(fileName, CreationCollisionOption.ReplaceExisting);
                 using (var ms = new MemoryStream())
                 {
                     var ser = new DataContractJsonSerializer(typeof(List<ChatMessageDto>));

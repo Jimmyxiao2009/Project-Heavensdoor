@@ -28,6 +28,25 @@ namespace QQReborn.App.Views
             NavigationCacheMode = NavigationCacheMode.Enabled;
             _vm = new MainViewModel(App.ChatService);
             DataContext = _vm;
+            _vm.ContactGroups.CollectionChanged += (_, __) => UpdateContactAlphabetState();
+            UpdateContactAlphabetState();
+        }
+
+        private void UpdateContactAlphabetState()
+        {
+            if (ContactAlphabetBar == null) return;
+
+            var available = new HashSet<string>(
+                _vm.ContactGroups.Select(group => group.Key),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var button in ContactAlphabetBar.Children.OfType<Button>())
+            {
+                var key = button.Tag as string;
+                var enabled = !string.IsNullOrEmpty(key) && available.Contains(key);
+                button.IsEnabled = enabled;
+                button.Opacity = enabled ? 1.0 : 0.28;
+            }
         }
 
         // ---- 应用内新消息横幅 ----
@@ -53,16 +72,7 @@ namespace QQReborn.App.Views
                 var conv = _vm.Conversations.FirstOrDefault(c => c.Id == msg.ConversationId);
                 // Mute already checked via NotificationMuteGate; ignore lagging conv.IsMuted.
 
-                var preview = msg.Text ?? "";
-                switch (msg.ContentType)
-                {
-                    case MessageContentType.Image: preview = "[图片]"; break;
-                    case MessageContentType.Sticker: preview = "[表情]"; break;
-                    case MessageContentType.Voice: preview = "[语音]"; break;
-                    case MessageContentType.Location: preview = "[位置]"; break;
-                    case MessageContentType.Video: preview = "[视频]"; break;
-                    case MessageContentType.FileMsg: preview = "[文件]"; break;
-                }
+                var preview = MessagePresentation.GetSummary(msg);
 
                 var isGroup = (conv != null && conv.IsGroup)
                     || (!string.IsNullOrEmpty(msg.ConversationId)
@@ -125,6 +135,9 @@ namespace QQReborn.App.Views
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            // Reaching the home page is an explicit exit from the previous chat. Do not
+            // reopen that stale chat on the next cold launch.
+            App.ClearRememberedConversation();
             // This method must contain no await. A cached MainPage should return to the
             // frame immediately; all cache/network work is started after navigation.
             App.ChatService.MessageReceived += OnGlobalMessageReceived;
@@ -137,7 +150,12 @@ namespace QQReborn.App.Views
             try
             {
                 if (!_vm.IsLoaded)
+                {
                     await _vm.LoadAsync();
+                    // LoadAsync already fetched and merged the initial snapshot. Avoid
+                    // immediately issuing the same request a second time on first paint.
+                    return;
+                }
                 await _vm.SoftRefreshAsync();
             }
             catch (Exception ex)
@@ -182,7 +200,7 @@ namespace QQReborn.App.Views
         {
             try
             {
-                await _vm.SoftRefreshAsync();
+                await _vm.SoftRefreshAsync(force: true);
             }
             catch (Exception ex)
             {
@@ -201,6 +219,18 @@ namespace QQReborn.App.Views
             {
                 Frame.Navigate(typeof(ContactDetailPage), contact);
             }
+        }
+
+        private void ContactAlphabet_Click(object sender, RoutedEventArgs e)
+        {
+            var key = (sender as FrameworkElement)?.Tag as string;
+            if (string.IsNullOrEmpty(key)) return;
+
+            var group = _vm.ContactGroups.FirstOrDefault(item =>
+                string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase));
+            var firstContact = group?.FirstOrDefault();
+            if (firstContact != null)
+                ContactList.ScrollIntoView(firstContact);
         }
 
 
@@ -400,8 +430,7 @@ namespace QQReborn.App.Views
 
             foreach (var c in targets)
             {
-                c.IsMuted = muted;
-                await SetMuteSafe(c, muted);
+                await ConversationNotificationSettings.TrySetMutedAsync(App.ChatService, c, muted);
             }
 
             AnimateQuickPanel(false);
@@ -433,19 +462,6 @@ namespace QQReborn.App.Views
 
         private static bool IsSpecial(ChatConversation c)
             => c != null && NotificationMuteGate.IsSpecial(c.Id);
-
-        private static async System.Threading.Tasks.Task SetMuteSafe(ChatConversation c, bool value)
-        {
-            if (c == null || string.IsNullOrEmpty(c.Id)) return;
-            // Write the local notification gate before the network round-trip. Toasts can
-            // arrive while a batch is still updating the server one conversation at a time.
-            NotificationMuteGate.SetConversationMuted(c.Id, value);
-            try
-            {
-                await App.ChatService.SetConversationFlagsAsync(c.Id, null, value);
-            }
-            catch { }
-        }
 
         private void Files_Click(object sender, RoutedEventArgs e)
         {
@@ -509,14 +525,7 @@ namespace QQReborn.App.Views
             mute.Click += async (s, e) =>
             {
                 var next = !conv.IsMuted;
-                conv.IsMuted = next;
-                NotificationMuteGate.SetConversationMuted(conv.Id, next);
-                // Turning a single chat back on should not leave global mute-all stuck.
-                if (!next && NotificationMuteGate.IsMuteAll())
-                    NotificationMuteGate.SetMuteAll(false);
-                if (next) UnreadBadgeStore.Clear(conv.Id);
-                try { await App.ChatService.SetConversationFlagsAsync(conv.Id, null, next); }
-                catch { conv.IsMuted = !next; }
+                await ConversationNotificationSettings.TrySetMutedAsync(App.ChatService, conv, next);
             };
             menu.Items.Add(mute);
 

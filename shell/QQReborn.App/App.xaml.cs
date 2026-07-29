@@ -29,9 +29,68 @@ namespace QQReborn.App
         /// </summary>
         public static string ActiveConversationId { get; set; }
 
+        // A minimized UWP process may be terminated and launched again instead of being
+        // resumed. Keep just enough metadata to reopen the chat that was on screen.
+        private const string SuspendedConversationIdKey = "qqr.lifecycle.conversation.id";
+        private const string SuspendedConversationKindKey = "qqr.lifecycle.conversation.kind";
+        private const string SuspendedConversationTitleKey = "qqr.lifecycle.conversation.title";
+        private const string SuspendedConversationAvatarKey = "qqr.lifecycle.conversation.avatar";
+
+        public static void RememberConversation(Models.ChatConversation conversation)
+        {
+            if (conversation == null || string.IsNullOrEmpty(conversation.Id)) return;
+            try
+            {
+                var values = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
+                values[SuspendedConversationIdKey] = conversation.Id;
+                values[SuspendedConversationKindKey] = (int)conversation.Kind;
+                values[SuspendedConversationTitleKey] = conversation.Title ?? conversation.Id;
+                values[SuspendedConversationAvatarKey] = conversation.AvatarPath ?? string.Empty;
+            }
+            catch { }
+        }
+
+        public static Models.ChatConversation RestoreRememberedConversation()
+        {
+            try
+            {
+                var values = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
+                var id = values[SuspendedConversationIdKey] as string;
+                if (string.IsNullOrEmpty(id)) return null;
+
+                var kind = Models.ConversationKind.Friend;
+                var rawKind = values[SuspendedConversationKindKey];
+                if (rawKind is int i) kind = (Models.ConversationKind)i;
+                else if (rawKind is long l) kind = (Models.ConversationKind)l;
+
+                return new Models.ChatConversation
+                {
+                    Id = id,
+                    Kind = kind,
+                    Title = values[SuspendedConversationTitleKey] as string ?? id,
+                    AvatarPath = values[SuspendedConversationAvatarKey] as string,
+                };
+            }
+            catch { return null; }
+        }
+
+        public static void ClearRememberedConversation()
+        {
+            try
+            {
+                var values = Windows.Storage.ApplicationData.Current.LocalSettings.Values;
+                values.Remove(SuspendedConversationIdKey);
+                values.Remove(SuspendedConversationKindKey);
+                values.Remove(SuspendedConversationTitleKey);
+                values.Remove(SuspendedConversationAvatarKey);
+            }
+            catch { }
+        }
+
         /// <summary>Guards against registering the hardware/back-button handler more than
         /// once -- OnLaunched can run again (e.g. after a Prelaunch activation).</summary>
         private bool _backHandlerRegistered;
+        private int _resumeInFlight;
 
         public App()
         {
@@ -69,16 +128,7 @@ namespace QQReborn.App
             // ConversationCache / IsMuted can lag; LocalSettings is the source of truth.
             if (Services.NotificationMuteGate.ShouldSuppressNotification(msg.ConversationId)) return;
 
-            string preview = msg.Text ?? "";
-            switch (msg.ContentType)
-            {
-                case Models.MessageContentType.Image: preview = "[图片]"; break;
-                case Models.MessageContentType.Sticker: preview = "[表情]"; break;
-                case Models.MessageContentType.Voice: preview = "[语音]"; break;
-                case Models.MessageContentType.Location: preview = "[位置]"; break;
-                case Models.MessageContentType.Video: preview = "[视频]"; break;
-                case Models.MessageContentType.FileMsg: preview = "[文件]"; break;
-            }
+            string preview = MessagePresentation.GetSummary(msg);
 
             bool isGroupPush = !string.IsNullOrEmpty(msg.ConversationId)
                 && (msg.ConversationId.StartsWith("g", StringComparison.OrdinalIgnoreCase)
@@ -164,11 +214,21 @@ namespace QQReborn.App
             }
         }
 
-        private void OnResuming(object sender, object e)
+        private async void OnResuming(object sender, object e)
         {
-            if (UseRemoteBackend && ChatService is RemoteChatService remoteChat)
+            if (!UseRemoteBackend || !(ChatService is RemoteChatService remoteChat)) return;
+            if (System.Threading.Interlocked.Exchange(ref _resumeInFlight, 1) != 0) return;
+            try
             {
-                var _ = remoteChat.ForceReconnectAsync();
+                await remoteChat.ForceReconnectAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Resume reconnect failed: " + ex);
+            }
+            finally
+            {
+                System.Threading.Interlocked.Exchange(ref _resumeInFlight, 0);
             }
         }
 
@@ -200,6 +260,9 @@ namespace QQReborn.App
             {
                 if (rootFrame.Content == null)
                 {
+                    // A real launch starts at Home. ConversationPage is retained by the
+                    // existing Frame while the app is suspended/minimized, so resume still
+                    // stays in the chat without making the last chat the permanent home page.
                     rootFrame.Navigate(typeof(MainPage), e.Arguments);
                 }
 
@@ -229,33 +292,43 @@ namespace QQReborn.App
         private async void OnSuspending(object sender, Windows.ApplicationModel.SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
-
-            if (_extendedSession != null)
-            {
-                _extendedSession.Dispose();
-                _extendedSession = null;
-            }
-
-            _extendedSession = new Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession
-            {
-                Reason = Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionReason.Unspecified,
-                Description = "Keep receiving WebSocket messages for Toast notifications"
-            };
-
-            _extendedSession.Revoked += (s, args) =>
+            try
             {
                 if (_extendedSession != null)
                 {
                     _extendedSession.Dispose();
                     _extendedSession = null;
                 }
-            };
 
-            var result = await _extendedSession.RequestExtensionAsync();
-            // If Allowed, the app continues running in the background when minimized.
-            // If Denied, it suspends as usual.
+                var session = new Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession
+                {
+                    Reason = Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionReason.Unspecified,
+                    Description = "Keep receiving WebSocket messages for Toast notifications"
+                };
+                _extendedSession = session;
 
-            deferral.Complete();
+                session.Revoked += (s, args) =>
+                {
+                    if (object.ReferenceEquals(_extendedSession, session))
+                    {
+                        _extendedSession = null;
+                        session.Dispose();
+                    }
+                };
+
+                // If Allowed, the app continues running in the background when minimized.
+                // If Denied or unavailable, it suspends normally and the saved chat metadata
+                // lets a later process recreation reopen the same page.
+                await session.RequestExtensionAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Extended execution unavailable: " + ex);
+            }
+            finally
+            {
+                deferral.Complete();
+            }
         }
     }
 }

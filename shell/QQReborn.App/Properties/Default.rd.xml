@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Directives xmlns="http://schemas.microsoft.com/netfx/2013/01/metadata">
+  <Application>
+    <!-- Keep reflection-based JSON/XAML binding paths available to .NET Native. -->
+    <Assembly Name="QQReborn.App" Dynamic="Required All" />
+  </Application>
+</Directives>

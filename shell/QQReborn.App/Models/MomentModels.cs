@@ -9,6 +9,8 @@ namespace QQReborn.App.Models
     {
         public string Author { get; set; }
         public string Text { get; set; }
+        public ObservableCollection<MomentComment> Replies { get; } = new ObservableCollection<MomentComment>();
+        public bool HasReplies => Replies.Count > 0;
     }
 
     /// <summary>One entry in the friend feed (QQ空间 / 好友动态).</summary>

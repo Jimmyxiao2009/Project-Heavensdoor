@@ -110,6 +110,16 @@ public sealed class NapCatApiClient : IDisposable
         }
         return 0;
     }
+    public static double ReadDouble(JsonNode? n)
+    {
+        if (n is JsonValue v)
+        {
+            if (v.TryGetValue<double>(out var d)) return d;
+            if (v.TryGetValue<long>(out var l)) return l;
+            if (v.TryGetValue<string>(out var s) && double.TryParse(s, out var p)) return p;
+        }
+        return 0;
+    }
 
     public static string ReadStr(JsonNode? n) => n switch
     {

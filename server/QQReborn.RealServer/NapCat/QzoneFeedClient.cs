@@ -216,6 +216,106 @@ public sealed class QzoneFeedClient
         }
     }
 
+    public async Task<bool> CommentAsync(string momentId, string text)
+    {
+        if (string.IsNullOrWhiteSpace(momentId) || string.IsNullOrWhiteSpace(text)) return false;
+
+        JsonObject? moment;
+        lock (_gate) moment = _moments.FirstOrDefault(m => ReadStr(m["id"]) == momentId);
+        if (moment == null) return false;
+
+        var cookies = await FetchCookiesAsync();
+        if (string.IsNullOrEmpty(cookies)) return false;
+        if (!TryGetCookie(cookies, "p_skey", out var pskey)
+            && !TryGetCookie(cookies, "skey", out pskey)) return false;
+
+        var targetUin = ReadLong(moment["authorUin"]);
+        var tid = ReadStr(moment["tid"]);
+        if (targetUin <= 0 || string.IsNullOrEmpty(tid))
+        {
+            Console.WriteLine("[Qzone] comment missing targetUin/tid");
+            return false;
+        }
+
+        var url = $"https://user.qzone.qq.com/proxy/domain/taotao.qzone.qq.com/cgi-bin/emotion_cgi_re_feeds?g_tk={CalculateGtk(pskey)}";
+        var form = new Dictionary<string, string>
+        {
+            ["topicId"] = $"{targetUin}_{tid}__1",
+            ["uin"] = _selfUin.ToString(),
+            ["hostUin"] = targetUin.ToString(),
+            ["feedsType"] = "100",
+            ["inCharset"] = "utf-8",
+            ["outCharset"] = "utf-8",
+            ["plat"] = "qzone",
+            ["source"] = "ic",
+            ["platformid"] = "52",
+            ["format"] = "fs",
+            ["ref"] = "feeds",
+            ["content"] = text.Trim(),
+            ["qzreferrer"] = $"https://user.qzone.qq.com/{_selfUin}/main",
+        };
+
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", cookies);
+            // QZone's comment CGI rejects the mobile-style feed headers with an
+            // HTML page. Use the same browser profile as the desktop QZone API.
+            http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36");
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Accept",
+                "application/json, text/javascript, */*; q=0.01");
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Referer",
+                $"https://user.qzone.qq.com/{_selfUin}/main");
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Origin", "https://user.qzone.qq.com");
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Sec-Fetch-Dest", "empty");
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Sec-Fetch-Mode", "cors");
+            http.DefaultRequestHeaders.TryAddWithoutValidation("Sec-Fetch-Site", "same-site");
+            using var content = new FormUrlEncodedContent(form);
+            using var resp = await http.PostAsync(url, content);
+            var raw = await resp.Content.ReadAsStringAsync();
+            var body = UnwrapCallback(raw);
+            JsonNode? parsed;
+            try
+            {
+                parsed = JsonNode.Parse(body);
+            }
+            catch (Exception parseEx)
+            {
+                var preview = raw.Replace('\r', ' ').Replace('\n', ' ');
+                Console.WriteLine($"[Qzone] comment response parse failed HTTP {(int)resp.StatusCode} "
+                    + $"url={resp.RequestMessage?.RequestUri} {parseEx.Message} "
+                    + $"body={preview[..Math.Min(240, preview.Length)]}");
+                return false;
+            }
+
+            var parsedData = parsed?["data"] as JsonObject;
+            var code = ReadLong(parsed?["code"] ?? parsed?["ret"]
+                ?? parsedData?["code"] ?? parsedData?["ret"]);
+            var ok = resp.IsSuccessStatusCode && (code == 0
+                || raw.Contains("\"code\":0", StringComparison.Ordinal)
+                || raw.Contains("\"ret\":0", StringComparison.Ordinal));
+            Console.WriteLine($"[Qzone] comment HTTP {(int)resp.StatusCode} ok={ok} {raw[..Math.Min(160, raw.Length)]}");
+            if (ok)
+            {
+                lock (_gate)
+                {
+                    // The UI refresh will replace this snapshot with QQ's canonical
+                    // comment list; this only makes the immediate response observable.
+                    var comments = moment["comments"] as JsonArray ?? new JsonArray();
+                    if (moment["comments"] == null) moment["comments"] = comments;
+                    comments.Add(new JsonObject { ["author"] = "我", ["text"] = text.Trim() });
+                }
+            }
+            return ok;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[Qzone] comment: " + ex.Message);
+            return false;
+        }
+    }
+
     private async Task<string> FetchCookiesAsync()
     {
         // Prefer domain=qzone.qq.com (has p_skey)
@@ -245,7 +345,11 @@ public sealed class QzoneFeedClient
             var id = ReadStr(feed["id"] is JsonObject idObj
                 ? (idObj["cellid"] ?? idObj["cellId"])
                 : feed["id"]);
+            var tid = ReadStr(comm?["tid"] ?? feed["tid"] ?? feed["topicId"] ?? feed["feedid"] ?? feed["feedId"]);
+            if (string.IsNullOrEmpty(tid) && id.Contains("_", StringComparison.Ordinal))
+                tid = id[(id.LastIndexOf('_') + 1)..];
             if (string.IsNullOrEmpty(id)) id = ReadStr(comm?["feedskey"] ?? comm?["curlikekey"]);
+            if (string.IsNullOrEmpty(tid)) tid = id;
             if (string.IsNullOrEmpty(id)) id = Guid.NewGuid().ToString("N");
 
             var text = "";
@@ -291,8 +395,28 @@ public sealed class QzoneFeedClient
                     var cu = co["user"] as JsonObject ?? co["userinfo"] as JsonObject;
                     var cname = ReadStr(cu?["nickname"] ?? co["name"] ?? co["uin"]);
                     var ctext = ReadStr(co["content"] ?? co["summary"] ?? co["comment"]);
-                    if (string.IsNullOrEmpty(ctext)) continue;
-                    comments.Add(new JsonObject { ["author"] = cname, ["text"] = ctext });
+                    var mapped = new JsonObject { ["author"] = cname, ["text"] = ctext };
+                    var replies = co["replies"] as JsonArray
+                        ?? co["replylist"] as JsonArray
+                        ?? co["subComments"] as JsonArray
+                        ?? co["comments"] as JsonArray;
+                    if (replies != null)
+                    {
+                        var replyArr = new JsonArray();
+                        foreach (var reply in replies)
+                        {
+                            if (reply is not JsonObject ro) continue;
+                            var ru = ro["user"] as JsonObject ?? ro["userinfo"] as JsonObject;
+                            replyArr.Add(new JsonObject
+                            {
+                                ["author"] = ReadStr(ru?["nickname"] ?? ro["name"] ?? ro["uin"]),
+                                ["text"] = ReadStr(ro["content"] ?? ro["summary"] ?? ro["comment"]),
+                            });
+                        }
+                        mapped["replies"] = replyArr;
+                    }
+                    if (string.IsNullOrEmpty(ctext) && replies == null) continue;
+                    comments.Add(mapped);
                 }
             }
 
@@ -318,6 +442,7 @@ public sealed class QzoneFeedClient
                 ["authorName"] = authorName,
                 ["authorAvatarPath"] = avatar,
                 ["authorUin"] = authorUin,
+                ["tid"] = tid,
                 ["text"] = text,
                 ["timeText"] = timeText,
                 ["time"] = timeIso,

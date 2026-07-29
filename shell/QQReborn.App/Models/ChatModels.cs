@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using QQReborn.App.Mvvm;
 
 namespace QQReborn.App.Models
@@ -42,7 +43,8 @@ namespace QQReborn.App.Models
         LinkCard,
         FileMsg,
         Location,
-        Video
+        Video,
+        Forward
     }
 
     public enum MessageState
@@ -242,6 +244,18 @@ namespace QQReborn.App.Models
         public bool HasUrl => !string.IsNullOrEmpty(Url);
     }
 
+    /// <summary>One preview row inside a merged-forward message.</summary>
+    public sealed class ForwardEntry
+    {
+        public string SenderName { get; set; }
+        public string Text { get; set; }
+        public string ImagePath { get; set; }
+        public bool HasImage => !string.IsNullOrEmpty(ImagePath);
+        public string DisplayText => string.IsNullOrEmpty(SenderName)
+            ? (Text ?? string.Empty)
+            : SenderName + "：" + (Text ?? string.Empty);
+    }
+
     /// <summary>A single message inside a conversation.</summary>
     public class ChatMessage : ObservableObject
     {
@@ -267,6 +281,7 @@ namespace QQReborn.App.Models
                     RaisePropertyChanged(nameof(IsSystem));
                     RaisePropertyChanged(nameof(IsLinkCard)); RaisePropertyChanged(nameof(IsFile));
                     RaisePropertyChanged(nameof(IsLocation)); RaisePropertyChanged(nameof(IsVideo));
+                    RaisePropertyChanged(nameof(IsForward));
                     RaisePropertyChanged(nameof(IsTextOnly)); RaisePropertyChanged(nameof(IsImageOnly));
                 }
             }
@@ -293,9 +308,14 @@ namespace QQReborn.App.Models
         public string RevokedBadgeText => _isRevoked ? "已撤回 · 本地保留" : string.Empty;
 
         public System.Collections.ObjectModel.ObservableCollection<MessageElement> Elements { get; set; } = new System.Collections.ObjectModel.ObservableCollection<MessageElement>();
+        public System.Collections.ObjectModel.ObservableCollection<ForwardEntry> ForwardEntries { get; } = new System.Collections.ObjectModel.ObservableCollection<ForwardEntry>();
         
         public bool HasElements => Elements != null && Elements.Count > 0;
         public bool HasNoElements => !HasElements;
+        public bool HasForwardEntries => ForwardEntries.Count > 0;
+        public string ForwardPreview => ForwardEntries.Count == 0
+            ? (Text ?? "[转发消息]")
+            : string.Join("\n", ForwardEntries.Take(3).Select(x => x.DisplayText));
 
         /// <summary>
         /// True when the bubble should use the multi-part layout (text+image, multi-image,
@@ -386,6 +406,8 @@ namespace QQReborn.App.Models
         public string PlaceName { get; set; }
         public string PlaceAddress { get; set; }
         public string PlaceThumb { get; set; }
+        public double PlaceLatitude { get; set; }
+        public double PlaceLongitude { get; set; }
 
         // ---- reactions ----
         public ObservableCollection<string> Reactions { get; } = new ObservableCollection<string>();
@@ -418,6 +440,7 @@ namespace QQReborn.App.Models
         public bool IsFile => _contentType == MessageContentType.FileMsg;
         public bool IsLocation => _contentType == MessageContentType.Location;
         public bool IsVideo => _contentType == MessageContentType.Video;
+        public bool IsForward => _contentType == MessageContentType.Forward;
 
         public string VoiceText => VoiceSeconds + "″";
         public double VoiceWidth => System.Math.Min(60 + VoiceSeconds * 8, 200);

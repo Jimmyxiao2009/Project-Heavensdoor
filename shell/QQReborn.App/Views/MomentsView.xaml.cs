@@ -7,6 +7,7 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
+using Windows.UI.Popups;
 using Windows.UI.Xaml.Shapes;
 using QQReborn.App.Models;
 using QQReborn.App.Services;
@@ -201,6 +202,7 @@ namespace QQReborn.App.Views
 
         private void VideoPoster_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
         {
+            e.Handled = true;
             var path = (sender as FrameworkElement)?.Tag as string;
             if (string.IsNullOrEmpty(path)) return;
             (Window.Current.Content as Frame)?.Navigate(typeof(VideoPlayerPage), path);
@@ -212,6 +214,14 @@ namespace QQReborn.App.Views
             if (string.IsNullOrEmpty(path)) return;
             e.Handled = true;
             (Window.Current.Content as Frame)?.Navigate(typeof(ImageViewerPage), path);
+        }
+
+        private void MomentCard_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
+        {
+            if (e.Handled) return;
+            if (!((sender as FrameworkElement)?.DataContext is Moment moment)) return;
+            e.Handled = true;
+            (Window.Current.Content as Frame)?.Navigate(typeof(MomentDetailPage), moment);
         }
 
         // Tapping 💬 opens a tiny inline composer flyout anchored to the button.
@@ -242,11 +252,25 @@ namespace QQReborn.App.Views
             send.Click += async (s, args) =>
             {
                 var t = input.Text;
-                if (!string.IsNullOrWhiteSpace(t))
+                if (string.IsNullOrWhiteSpace(t)) return;
+                send.IsEnabled = false;
+                try
                 {
                     await _vm.AddCommentAsync(moment, t);
+                    flyout.Hide();
                 }
-                flyout.Hide();
+                catch (Exception ex)
+                {
+                    flyout.Hide();
+                    var message = string.IsNullOrWhiteSpace(ex.Message)
+                        ? "评论发送失败，请稍后重试"
+                        : ex.Message;
+                    await new MessageDialog(message, "动态评论").ShowAsync();
+                }
+                finally
+                {
+                    send.IsEnabled = true;
+                }
             };
 
             flyout.ShowAt(btn);

@@ -100,6 +100,10 @@
         <Button x:Name="StartNapCatBtn" Content="启动 NapCat" Click="StartNapCat_Click"
                 Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
                 Padding="12,8" Margin="0,0,0,6" FontSize="13" Cursor="Hand"/>
+        <Button x:Name="RestartNapCatBtn" Content="重启 NapCat并切换账号" Click="RestartNapCat_Click"
+                Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
+                Padding="12,8" Margin="0,0,0,6" FontSize="13" Cursor="Hand"
+                ToolTip="关闭当前 NTQQ/NapCat 会话，再按上方选择的账号启动"/>
         <Button Content="检测 NapCat" Click="CheckNapCat_Click"
                 Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
                 Padding="12,8" Margin="0,0,0,6" FontSize="13" Cursor="Hand"/>

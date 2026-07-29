@@ -221,6 +221,40 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void RestartNapCat_Click(object sender, RoutedEventArgs e)
+    {
+        StartAllBtn.IsEnabled = false;
+        StartNapCatBtn.IsEnabled = false;
+        RestartNapCatBtn.IsEnabled = false;
+        NapCatStatus.Text = "重启中…";
+        NapCatDot.Fill = _bad;
+        try
+        {
+            PullUiIntoManager();
+            Append("—— 重启 NapCat 并切换账号 ——");
+            Append("目标账号: " + _mgr.NapCatUinDisplay);
+            // Restarting a logged-out account must not hold the steward UI in a 90-second
+            // polling loop. The user can complete QQ/QR login in the foreground and use
+            // "检测 NapCat" once the OneBot endpoint is ready.
+            var ok = await _mgr.RestartNapCatAsync(waitForOnline: false);
+            NapCatStatus.Text = ok ? "在线" : "已启动，等待登录";
+            NapCatDot.Fill = ok ? _ok : _bad;
+        }
+        catch (Exception ex)
+        {
+            Append("重启 NapCat 失败: " + ex.Message);
+            NapCatStatus.Text = "未连接";
+            MessageBox.Show(ex.Message, "重启 NapCat 失败", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            StartAllBtn.IsEnabled = true;
+            StartNapCatBtn.IsEnabled = true;
+            RestartNapCatBtn.IsEnabled = true;
+            RefreshStatus();
+        }
+    }
+
     private async void CheckNapCat_Click(object sender, RoutedEventArgs e)
     {
         NapCatStatus.Text = "检测中…";

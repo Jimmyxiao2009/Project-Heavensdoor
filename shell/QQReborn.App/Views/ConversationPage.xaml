@@ -39,6 +39,18 @@
                             <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="15"
                                        Foreground="{StaticResource MetroPrimaryTextBrush}" />
                         </Border>
+                        <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left"
+                                MaxWidth="280" Tapped="Forward_Tapped"
+                                Visibility="{Binding IsForward, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel>
+                                <TextBlock Text="合并转发" FontSize="13" FontWeight="SemiLight"
+                                           Foreground="{StaticResource MetroAccentBrush}" />
+                                <TextBlock Text="{Binding ForwardPreview}" TextWrapping="Wrap" MaxLines="3"
+                                           Margin="0,5,0,0" Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="点击查看全部消息" FontSize="11" Margin="0,6,0,0"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            </StackPanel>
+                        </Border>
                         <!-- 图文混排 / 多图 -->
                         <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left" MaxWidth="280"
                                 Visibility="{Binding UseMixedLayout, Converter={StaticResource BoolToVisibility}}">
@@ -172,7 +184,7 @@
                 <TextBlock Text="{Binding DividerText}" FontSize="11" HorizontalAlignment="Center" Margin="0,6,0,8"
                            Foreground="{StaticResource MetroSecondaryTextBrush}"
                            Visibility="{Binding ShowTimeDivider, Converter={StaticResource BoolToVisibility}}" />
-                <StackPanel Margin="60,6,0,6" HorizontalAlignment="Right" MaxWidth="320"
+                <StackPanel Margin="60,6,0,6" HorizontalAlignment="Right" MaxWidth="270"
                             Holding="Bubble_Holding" RightTapped="Bubble_RightTapped" DoubleTapped="Bubble_DoubleTapped">
                     <!-- 引用 -->
                     <Border Background="{StaticResource MetroSubtleBrush}" BorderBrush="{StaticResource MetroAccentBrush}"
@@ -184,6 +196,17 @@
                     <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
                             Visibility="{Binding IsTextOnly, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="15" Foreground="White" />
+                    </Border>
+                    <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
+                            MaxWidth="280" Tapped="Forward_Tapped"
+                            Visibility="{Binding IsForward, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="合并转发" FontSize="13" FontWeight="SemiLight" Foreground="White" />
+                            <TextBlock Text="{Binding ForwardPreview}" TextWrapping="Wrap" MaxLines="3"
+                                       Margin="0,5,0,0" Foreground="White" />
+                            <TextBlock Text="点击查看全部消息" FontSize="11" Margin="0,6,0,0"
+                                       Foreground="#CCFFFFFF" />
+                        </StackPanel>
                     </Border>
                     <!-- 图文混排 / 多图 -->
                     <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right" MaxWidth="280"
@@ -360,7 +383,7 @@
                 <TextBlock Text="{Binding DividerText}" FontSize="11" HorizontalAlignment="Center" Margin="0,6,0,8"
                            Foreground="{StaticResource MetroSecondaryTextBrush}"
                            Visibility="{Binding ShowTimeDivider, Converter={StaticResource BoolToVisibility}}" />
-                <StackPanel Margin="60,6,0,6" HorizontalAlignment="Right" MaxWidth="320"
+                <StackPanel Margin="60,6,0,6" HorizontalAlignment="Right" MaxWidth="270"
                             Holding="Bubble_Holding" RightTapped="Bubble_RightTapped" DoubleTapped="Bubble_DoubleTapped">
                     <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
                             Tapped="Video_Tapped">
@@ -457,7 +480,7 @@
                       ItemsSource="{Binding Messages}"
                       ItemTemplateSelector="{StaticResource MessageSelector}"
                       SelectionMode="None"
-                      Padding="24,4,16,8">
+                       Padding="20,4,20,8">
                 <ListView.Header>
                     <!-- 查看更多消息：上拉/点击拉取更早的云端历史（好友漫游 / 群序列历史；mock 为伪造数据） -->
                     <Grid Padding="0,6,0,10" HorizontalAlignment="Stretch"
@@ -479,6 +502,19 @@
                     </Style>
                 </ListView.ItemContainerStyle>
             </ListView>
+            <!-- A remote transcript can take several seconds (especially after a Frp
+                 reconnect). Keep the page visibly alive so an empty list is not mistaken
+                 for a frozen chat. IsHitTestVisible=false keeps the composer usable. -->
+            <Border Background="#CC101820" IsHitTestVisible="False"
+                    Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <ProgressRing IsActive="True" Width="42" Height="42"
+                                  Foreground="{StaticResource MetroAccentBrush}" />
+                    <TextBlock Text="{Binding LoadingText}" FontSize="13" Margin="0,12,0,0"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- 正在输入 + 引用条 + 待发图片（图文混排） -->
@@ -604,11 +640,18 @@
                      AcceptsReturn="True"
                      TextWrapping="Wrap" MaxHeight="100"
                      VerticalAlignment="Center" Margin="6,0,0,0" />
-            <Button Grid.Column="6" x:Name="SendButton" Content="发送"
+            <Button Grid.Column="6" x:Name="SendButton"
                     Click="SendButton_Click"
                     IsEnabled="{Binding CanSend}"
                     Background="{StaticResource MetroAccentBrush}" Foreground="White"
-                    BorderThickness="0" Margin="8,0,0,0" Padding="16,10" VerticalAlignment="Center" />
+                    BorderThickness="0" Margin="8,0,0,0" Padding="12,10" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal">
+                    <ProgressRing IsActive="{Binding IsSending}" Width="16" Height="16"
+                                  Margin="0,0,6,0"
+                                  Visibility="{Binding IsSending, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding SendButtonText}" />
+                </StackPanel>
+            </Button>
         </Grid>
 
         <!-- 录音提示 -->

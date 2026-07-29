@@ -246,6 +246,20 @@ namespace QQReborn.App.Services
         // to auto-retry a connection that was up at least once, not the very first
         // connect attempt (that failure is still surfaced to the caller as-is).
         private bool _everConnected;
+        // The RealServer currently creates a fresh AccountSession for a fresh
+        // WebSocket. Keep the last successful account binding so reconnect can
+        // restore that session before consumers refresh conversations.
+        private readonly object _accountGate = new object();
+        private string _configuredSignUrl = "";
+        private string _configuredSignToken = "";
+        private string _configuredSignUin = "";
+        private bool _accountConfigured;
+        // A RealServer session belongs to one WebSocket connection.  After a network
+        // reconnect the transport may already be authenticated while its fresh backend has
+        // not yet been associated with the QQ account, which used to make the first send
+        // fail with "not-online".  Serialize that short rebind handshake for all callers.
+        private bool _accountBoundForCurrentConnection;
+        private readonly SemaphoreSlim _accountBindLock = new SemaphoreSlim(1, 1);
         // Guards against two reconnect loops running concurrently (e.g. OnClosed firing
         // while the OnMessage error path is also declaring the connection dead). Only
         // ever flipped via Interlocked, so this is safe to touch from any thread.
@@ -274,6 +288,10 @@ namespace QQReborn.App.Services
         /// a connection that had previously dropped. Consumers (e.g. MainViewModel) use
         /// this to re-sync state that may have been missed while disconnected.</summary>
         public event EventHandler Reconnected;
+
+        /// <summary>Raised when the NapCat backend finishes its initial background
+        /// conversation/contact population after account binding.</summary>
+        public event EventHandler SessionDataUpdated;
 
         private async Task EnsureConnectedAsync()
         {
@@ -453,6 +471,7 @@ namespace QQReborn.App.Services
                 _writer = null;
                 _connected = false;
             }
+            lock (_accountGate) _accountBoundForCurrentConnection = false;
             if (ws != null)
             {
                 try { ws.MessageReceived -= OnMessage; } catch { }
@@ -515,6 +534,7 @@ namespace QQReborn.App.Services
             try
             {
                 await EnsureConnectedAsync();
+                await RestoreAccountAfterReconnectAsync();
                 RunOnUi(() => Reconnected?.Invoke(this, EventArgs.Empty));
             }
             catch
@@ -589,6 +609,7 @@ namespace QQReborn.App.Services
                     try
                     {
                         await EnsureConnectedAsync();
+                        await RestoreAccountAfterReconnectAsync();
                         RunOnUi(() => Reconnected?.Invoke(this, EventArgs.Empty));
                         return;
                     }
@@ -741,6 +762,10 @@ namespace QQReborn.App.Services
                 };
                 RunOnUi(() => LoginStatusChanged?.Invoke(this, info));
             }
+            else if (type == "sessionDataUpdated")
+            {
+                RunOnUi(() => SessionDataUpdated?.Invoke(this, EventArgs.Empty));
+            }
             else if (type == "spaceFeedUpdated")
             {
                 var data = frame.GetNamedObject("data");
@@ -767,6 +792,11 @@ namespace QQReborn.App.Services
         private async Task<string> RequestAsync(string type, Action<JsonObject> fill, int timeoutSeconds = 10)
         {
             await EnsureConnectedAsync();
+            // "configureAccount" is the binding request itself; every other operation on a
+            // re-created socket waits for that binding first. This also covers an on-demand
+            // reconnect started by a Send before the background reconnect loop wakes up.
+            if (!string.Equals(type, "configureAccount", StringComparison.Ordinal))
+                await EnsureAccountBoundForCurrentConnectionAsync();
 
             var id = Guid.NewGuid().ToString("N");
             var req = new JsonObject
@@ -827,41 +857,40 @@ namespace QQReborn.App.Services
 
         public async Task<IReadOnlyList<ChatConversation>> GetConversationsAsync()
         {
-            var arr = JsonArray.Parse(await RequestAsync("getConversations", null));
-            var list = new List<ChatConversation>();
-            foreach (var n in arr)
+            var payload = await RequestAsync("getConversations", null);
+            // A large account can return hundreds or thousands of sessions. Do JSON parsing
+            // and model construction off the UI context; MainViewModel switches back only for
+            // the small, bound-collection merge.
+            return await Task.Run(() =>
             {
-                var o = n.GetObject();
-                list.Add(new ChatConversation
+                var arr = JsonArray.Parse(payload);
+                var list = new List<ChatConversation>();
+                foreach (var n in arr)
                 {
-                    Id = Str(o, "id"),
-                    Kind = Str(o, "kind") == "Group" ? ConversationKind.Group : ConversationKind.Friend,
-                    Title = Str(o, "title"),
-                    AvatarPath = Str(o, "avatarPath"),
-                    Preview = Str(o, "preview"),
-                    LastTime = ParseTime(Str(o, "lastTime")),
-                    Unread = (int)o.GetNamedNumber("unread", 0),
-                    LastReadAt = Str(o, "lastReadAt"),
-                    Announcement = Str(o, "announcement"),
-                    IsPinned = o.GetNamedBoolean("isPinned", false),
-                    IsMuted = o.GetNamedBoolean("isMuted", false),
-                });
-            }
-            return list;
+                    var o = n.GetObject();
+                    list.Add(new ChatConversation
+                    {
+                        Id = Str(o, "id"),
+                        Kind = Str(o, "kind") == "Group" ? ConversationKind.Group : ConversationKind.Friend,
+                        Title = Str(o, "title"),
+                        AvatarPath = Str(o, "avatarPath"),
+                        Preview = Str(o, "preview"),
+                        LastTime = ParseTime(Str(o, "lastTime")),
+                        Unread = (int)o.GetNamedNumber("unread", 0),
+                        LastReadAt = Str(o, "lastReadAt"),
+                        Announcement = Str(o, "announcement"),
+                        IsPinned = o.GetNamedBoolean("isPinned", false),
+                        IsMuted = o.GetNamedBoolean("isMuted", false),
+                    });
+                }
+                return (IReadOnlyList<ChatConversation>)list;
+            });
         }
 
         /// <summary>Set pin/mute flags on the backend. Omitted (null) flags are left alone
         /// server-side; on success we don't mutate a local model here -- the caller owns that.</summary>
         public async Task SetConversationFlagsAsync(string conversationId, bool? isPinned, bool? isMuted)
         {
-            // Persist mute gate first so Windows Toast can suppress notifications even if
-            // the server round-trip is slow or the conversation cache is stale.
-            if (isMuted.HasValue && !string.IsNullOrEmpty(conversationId))
-            {
-                NotificationMuteGate.SetConversationMuted(conversationId, isMuted.Value);
-                if (isMuted.Value) UnreadBadgeStore.Clear(conversationId);
-            }
-
             await RequestAsync("setConversationFlags", r =>
             {
                 r["conversationId"] = JsonValue.CreateStringValue(conversationId ?? "");
@@ -904,8 +933,15 @@ namespace QQReborn.App.Services
             try
             {
                 if (_connected) return;
+                var hadPreviousConnection = _everConnected;
                 await EnsureConnectedAsync();
-                RunOnUi(() => Reconnected?.Invoke(this, EventArgs.Empty));
+                await RestoreAccountAfterReconnectAsync();
+                // The app starts the transport before MainViewModel binds the QQ
+                // account. Do not announce that initial socket as a reconnect: doing
+                // so can make an early refresh race configureAccount and briefly
+                // replace the real conversation list with an empty one.
+                if (hadPreviousConnection || IsAccountConfigured())
+                    RunOnUi(() => Reconnected?.Invoke(this, EventArgs.Empty));
             }
             catch
             {
@@ -915,35 +951,43 @@ namespace QQReborn.App.Services
 
         public async Task<IReadOnlyList<Contact>> GetContactsAsync()
         {
-            var arr = JsonArray.Parse(await RequestAsync("getContacts", null));
-            var list = new List<Contact>();
-            foreach (var n in arr)
+            var payload = await RequestAsync("getContacts", null);
+            return await Task.Run(() =>
             {
-                var o = n.GetObject();
-                list.Add(new Contact
+                var arr = JsonArray.Parse(payload);
+                var list = new List<Contact>();
+                foreach (var n in arr)
                 {
-                    Uin = (long)o.GetNamedNumber("uin", 0),
-                    Name = Str(o, "name"),
-                    AvatarPath = Str(o, "avatarPath"),
-                    Signature = Str(o, "signature"),
-                    Online = o.GetNamedBoolean("online", false),
-                });
-            }
-            return list;
+                    var o = n.GetObject();
+                    list.Add(new Contact
+                    {
+                        Uin = (long)o.GetNamedNumber("uin", 0),
+                        Name = Str(o, "name"),
+                        AvatarPath = Str(o, "avatarPath"),
+                        Signature = Str(o, "signature"),
+                        Online = o.GetNamedBoolean("online", false),
+                    });
+                }
+                return (IReadOnlyList<Contact>)list;
+            });
         }
 
         public async Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(string conversationId, bool localOnly = false)
         {
             // Opening a chat may trigger a one-shot cloud pull (30s). Search uses localOnly
             // and only hits the session cache (fast, no sign/history storm).
-            var arr = JsonArray.Parse(await RequestAsync("getMessages", r =>
+            var payload = await RequestAsync("getMessages", r =>
             {
                 r["conversationId"] = JsonValue.CreateStringValue(conversationId);
                 if (localOnly) r["localOnly"] = JsonValue.CreateBooleanValue(true);
-            }, timeoutSeconds: localOnly ? 10 : 30));
-            var list = new List<ChatMessage>();
-            foreach (var n in arr) list.Add(ParseMessage(n.GetObject()));
-            return list;
+            }, timeoutSeconds: localOnly ? 10 : 30);
+            return await Task.Run(() =>
+            {
+                var arr = JsonArray.Parse(payload);
+                var list = new List<ChatMessage>();
+                foreach (var n in arr) list.Add(ParseMessage(n.GetObject()));
+                return (IReadOnlyList<ChatMessage>)list;
+            });
         }
 
         public Task<ChatMessage> SendTextAsync(string conversationId, string text, string mentionsJson = null)
@@ -983,11 +1027,15 @@ namespace QQReborn.App.Services
 
             var localPaths = new List<string>();
             var b64List = new List<string>();
+            var encodedChars = 0;
             foreach (var path in imagePaths)
             {
                 if (string.IsNullOrEmpty(path)) continue;
                 var b64 = await EncodeImageForSendAsync(path);
                 if (string.IsNullOrEmpty(b64)) continue;
+                encodedChars += b64.Length;
+                if (encodedChars > MaxCombinedImageBase64Chars)
+                    throw new InvalidOperationException("图片合计过大，请分开发送");
                 b64List.Add(b64);
                 localPaths.Add(path);
             }
@@ -1094,13 +1142,45 @@ namespace QQReborn.App.Services
             return msg;
         }
 
-        public Task<ChatMessage> SendLocationAsync(string conversationId, string placeName, string address, string thumb)
+        public Task<ChatMessage> SendLocationAsync(string conversationId, string placeName, string address, string thumb,
+            double latitude = 0, double longitude = 0)
             => SendAsync(conversationId, "Location", placeName, null, null, 0, r =>
             {
                 if (placeName != null) r["placeName"] = JsonValue.CreateStringValue(placeName);
                 if (address != null) r["address"] = JsonValue.CreateStringValue(address);
                 if (thumb != null) r["thumb"] = JsonValue.CreateStringValue(thumb);
+                r["latitude"] = JsonValue.CreateNumberValue(latitude);
+                r["longitude"] = JsonValue.CreateNumberValue(longitude);
             });
+
+        public async Task<IReadOnlyList<string>> GetFavoriteStickersAsync()
+        {
+            var raw = await RequestAsync("getFavoriteStickers", r =>
+                r["count"] = JsonValue.CreateNumberValue(48), timeoutSeconds: 30);
+            var result = new List<string>();
+            if (string.IsNullOrEmpty(raw) || raw == "null") return result;
+            var root = JsonValue.Parse(raw);
+            JsonArray arr = null;
+            if (root.ValueType == JsonValueType.Array)
+                arr = root.GetArray();
+            else if (root.ValueType == JsonValueType.Object)
+            {
+                var obj = root.GetObject();
+                if (obj.ContainsKey("stickers") && obj["stickers"].ValueType == JsonValueType.Array)
+                    arr = obj.GetNamedArray("stickers");
+                else if (obj.ContainsKey("data") && obj["data"].ValueType == JsonValueType.Array)
+                    arr = obj.GetNamedArray("data");
+            }
+            if (arr == null) return result;
+            foreach (var item in arr)
+            {
+                var path = item.ValueType == JsonValueType.String
+                    ? item.GetString()
+                    : item.ValueType == JsonValueType.Object ? Str(item.GetObject(), "url") : "";
+                if (!string.IsNullOrEmpty(path) && !result.Contains(path)) result.Add(path);
+            }
+            return result;
+        }
 
         public async Task<ChatMessage> SendFileAsync(string conversationId, byte[] fileBytes, string fileName)
         {
@@ -1136,6 +1216,42 @@ namespace QQReborn.App.Services
                 r["messageId"] = JsonValue.CreateStringValue(messageId);
             }));
             return ParseMessage(data);
+        }
+
+        public async Task<ChatMessage> ForwardMessagesAsync(string targetConversationId, IReadOnlyList<string> messageIds)
+        {
+            var data = JsonObject.Parse(await RequestAsync("forwardMany", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(targetConversationId);
+                var ids = new JsonArray();
+                if (messageIds != null)
+                    foreach (var id in messageIds)
+                        if (!string.IsNullOrEmpty(id)) ids.Add(JsonValue.CreateStringValue(id));
+                r["messageIds"] = ids;
+            }, timeoutSeconds: 60));
+            return ParseMessage(data);
+        }
+
+        public async Task<IReadOnlyList<ForwardEntry>> GetForwardDetailsAsync(string messageId)
+        {
+            var result = new List<ForwardEntry>();
+            var raw = await RequestAsync("getForwardDetails", r =>
+                r["messageId"] = JsonValue.CreateStringValue(messageId), timeoutSeconds: 30);
+            if (string.IsNullOrEmpty(raw) || raw == "null") return result;
+            var data = JsonObject.Parse(raw);
+            if (data == null || !data.ContainsKey("entries")) return result;
+            foreach (var item in data.GetNamedArray("entries"))
+            {
+                if (item.ValueType != JsonValueType.Object) continue;
+                var o = item.GetObject();
+                result.Add(new ForwardEntry
+                {
+                    SenderName = Str(o, "senderName"),
+                    Text = Str(o, "text"),
+                    ImagePath = Str(o, "imagePath"),
+                });
+            }
+            return result;
         }
 
         public async Task<IReadOnlyList<GroupMember>> GetGroupMembersAsync(string conversationId)
@@ -1443,11 +1559,25 @@ namespace QQReborn.App.Services
                         {
                             if (comment.ValueType != JsonValueType.Object) continue;
                             var c = comment.GetObject();
-                            m.Comments.Add(new MomentComment
+                            var mappedComment = new MomentComment
                             {
                                 Author = Str(c, "author") ?? Str(c, "authorName"),
                                 Text = Str(c, "text") ?? Str(c, "content"),
-                            });
+                            };
+                            if (c.ContainsKey("replies") && c.GetNamedValue("replies").ValueType == JsonValueType.Array)
+                            {
+                                foreach (var reply in c.GetNamedArray("replies"))
+                                {
+                                    if (reply.ValueType != JsonValueType.Object) continue;
+                                    var ro = reply.GetObject();
+                                    mappedComment.Replies.Add(new MomentComment
+                                    {
+                                        Author = Str(ro, "author") ?? Str(ro, "authorName"),
+                                        Text = Str(ro, "text") ?? Str(ro, "content"),
+                                    });
+                                }
+                            }
+                            m.Comments.Add(mappedComment);
                         }
                         m.RaiseCommentsChanged();
                     }
@@ -1512,6 +1642,26 @@ namespace QQReborn.App.Services
             }
         }
 
+        public async Task<bool> SetSpaceCommentAsync(string momentId, string text)
+        {
+            if (string.IsNullOrWhiteSpace(momentId) || string.IsNullOrWhiteSpace(text)) return false;
+            try
+            {
+                var raw = await RequestAsync("setSpaceComment", r =>
+                {
+                    r["momentId"] = JsonValue.CreateStringValue(momentId);
+                    r["text"] = JsonValue.CreateStringValue(text.Trim());
+                }, timeoutSeconds: 30);
+                if (string.IsNullOrEmpty(raw) || raw == "null") return false;
+                var data = JsonObject.Parse(raw);
+                return data?.GetNamedBoolean("ok", false) == true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Kicks off real-account login on the backend (RealServer only). The fake demo
         /// server has no "configureAccount" handler and echoes data:null -- note that
@@ -1534,7 +1684,75 @@ namespace QQReborn.App.Services
             JsonObject data;
             if (string.IsNullOrEmpty(raw) || raw == "null" || !JsonObject.TryParse(raw, out data))
                 return false;
-            return data.GetNamedBoolean("accepted", false);
+            var accepted = data.GetNamedBoolean("accepted", false);
+            if (accepted)
+            {
+                lock (_accountGate)
+                {
+                    _configuredSignUrl = signUrl ?? "";
+                    _configuredSignToken = signToken ?? "";
+                    _configuredSignUin = signUin ?? "";
+                    _accountConfigured = true;
+                    _accountBoundForCurrentConnection = true;
+                }
+            }
+            return accepted;
+        }
+
+        private bool IsAccountConfigured()
+        {
+            lock (_accountGate) return _accountConfigured;
+        }
+
+        private async Task EnsureAccountBoundForCurrentConnectionAsync()
+        {
+            lock (_accountGate)
+            {
+                if (!_accountConfigured || _accountBoundForCurrentConnection) return;
+            }
+
+            await _accountBindLock.WaitAsync();
+            try
+            {
+                lock (_accountGate)
+                {
+                    if (!_accountConfigured || _accountBoundForCurrentConnection) return;
+                }
+                await RestoreAccountAfterReconnectAsync();
+            }
+            finally
+            {
+                _accountBindLock.Release();
+            }
+        }
+
+        /// <summary>Re-bind the backend session created for the previous socket.
+        /// SessionHub is connection-scoped today, so a transport reconnect otherwise
+        /// leaves the new backend at UIN 0 and the next refresh looks like an empty account.</summary>
+        private async Task RestoreAccountAfterReconnectAsync()
+        {
+            string signUrl;
+            string signToken;
+            string signUin;
+            lock (_accountGate)
+            {
+                if (!_accountConfigured) return;
+                signUrl = _configuredSignUrl;
+                signToken = _configuredSignToken;
+                signUin = _configuredSignUin;
+            }
+
+            var raw = await RequestAsync("configureAccount", r =>
+            {
+                r["signUrl"] = JsonValue.CreateStringValue(signUrl);
+                r["signToken"] = JsonValue.CreateStringValue(signToken);
+                r["signUin"] = JsonValue.CreateStringValue(signUin);
+            }, timeoutSeconds: 20);
+            if (string.IsNullOrEmpty(raw) || raw == "null"
+                || !JsonObject.TryParse(raw, out var data)
+                || !data.GetNamedBoolean("accepted", false))
+                throw new InvalidOperationException("网关重连后无法恢复 QQ 会话");
+            lock (_accountGate) _accountBoundForCurrentConnection = true;
         }
 
         // ---- channel / guild ----
@@ -1597,6 +1815,8 @@ namespace QQReborn.App.Services
                 PlaceName = Str(o, "placeName"),
                 PlaceAddress = Str(o, "address"),
                 PlaceThumb = Str(o, "thumb"),
+                PlaceLatitude = o.GetNamedNumber("latitude", 0),
+                PlaceLongitude = o.GetNamedNumber("longitude", 0),
                 ReplyToSender = Str(o, "replyToSender"),
                 ReplyToText = Str(o, "replyToText"),
                 FileName = Str(o, "fileName"),
@@ -1605,6 +1825,22 @@ namespace QQReborn.App.Services
                 Time = ParseTime(Str(o, "time")),
                 State = MessageState.Sent,
             };
+
+            if (type == "Forward" && o.ContainsKey("forwardEntries")
+                && o.GetNamedValue("forwardEntries").ValueType == JsonValueType.Array)
+            {
+                foreach (var entry in o.GetNamedArray("forwardEntries"))
+                {
+                    if (entry.ValueType != JsonValueType.Object) continue;
+                    var fo = entry.GetObject();
+                    msg.ForwardEntries.Add(new ForwardEntry
+                    {
+                        SenderName = Str(fo, "senderName"),
+                        Text = Str(fo, "text"),
+                        ImagePath = Str(fo, "imagePath"),
+                    });
+                }
+            }
 
             if (o.ContainsKey("elements"))
             {
@@ -1659,6 +1895,7 @@ namespace QQReborn.App.Services
                 case "File":
                 case "FileMsg": return MessageContentType.FileMsg;
                 case "LinkCard": return MessageContentType.LinkCard;
+                case "Forward": return MessageContentType.Forward;
                 case "Mixed": return MessageContentType.Text; // rendered via UseMixedLayout / Elements
                 default: return MessageContentType.Text;
             }
@@ -1682,7 +1919,11 @@ namespace QQReborn.App.Services
         // Chat photos: longer edge capped so base64 stays under the bridge's 2MB WS frame
         // budget (raw JPEG ~0.6–0.9MB → base64 ~0.8–1.2MB). Matches ProfileView's avatar
         // encoder, just with a larger edge allowance for conversation photos.
-        private const uint MaxChatImageEdge = 1280;
+        // RealServer caps one WebSocket frame at 2 MiB. Leave room for JSON, captions,
+        // mentions, and the base64 expansion so a normal phone photo does not fail only
+        // after the user has waited through the upload.
+        private const uint MaxChatImageEdge = 1024;
+        private const int MaxCombinedImageBase64Chars = 1_400_000;
 
         /// <summary>Read a local (ms-appdata / absolute) file into base64 for WS upload.</summary>
         private static async Task<string> EncodeFileBase64Async(string path)
@@ -1716,6 +1957,18 @@ namespace QQReborn.App.Services
         private static async Task<string> EncodeImageForSendAsync(string imagePath)
         {
             if (string.IsNullOrEmpty(imagePath)) throw new ArgumentException("imagePath empty");
+
+            if (imagePath.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                || imagePath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                var http = new Windows.Web.Http.HttpClient();
+                var buffer = await http.GetBufferAsync(new Uri(imagePath));
+                var cached = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    "favorite_sticker_" + Guid.NewGuid().ToString("N") + ".img",
+                    CreationCollisionOption.GenerateUniqueName);
+                await FileIO.WriteBufferAsync(cached, buffer);
+                imagePath = "ms-appdata:///local/" + cached.Name;
+            }
 
             StorageFile file;
             if (imagePath.StartsWith("ms-appdata:", StringComparison.OrdinalIgnoreCase)
@@ -1754,7 +2007,7 @@ namespace QQReborn.App.Services
                 {
                     var propertySet = new BitmapPropertySet
                     {
-                        ["ImageQuality"] = new BitmapTypedValue(0.8f, Windows.Foundation.PropertyType.Single)
+                        ["ImageQuality"] = new BitmapTypedValue(0.72f, Windows.Foundation.PropertyType.Single)
                     };
                     var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, outputStream, propertySet);
                     encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied,

@@ -121,23 +121,11 @@ namespace QQReborn.App.Views
         {
             if (_suppressToggleEvents || _conversation == null) return;
             var next = MuteToggle.IsOn;
-            var prev = _conversation.IsMuted;
-            _conversation.IsMuted = next;
-            try
-            {
-                // Keep the app-wide Windows Toast gate in sync when mute is changed
-                // from GroupInfoPage (not only from MainPage's context menu).
-                NotificationMuteGate.SetConversationMuted(_conversation.Id, next);
-                if (!next && NotificationMuteGate.IsMuteAll())
-                    NotificationMuteGate.SetMuteAll(false);
-                if (next) UnreadBadgeStore.Clear(_conversation.Id);
-                await App.ChatService.SetConversationFlagsAsync(_conversation.Id, null, next);
-            }
-            catch
+            var updated = await ConversationNotificationSettings.TrySetMutedAsync(App.ChatService, _conversation, next);
+            if (!updated)
             {
                 _suppressToggleEvents = true;
-                _conversation.IsMuted = prev;
-                MuteToggle.IsOn = prev;
+                MuteToggle.IsOn = _conversation.IsMuted;
                 _suppressToggleEvents = false;
             }
         }

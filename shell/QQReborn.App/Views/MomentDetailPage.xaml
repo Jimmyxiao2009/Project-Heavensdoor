@@ -1,0 +1,64 @@
+<Page
+    x:Class="QQReborn.App.Views.MomentDetailPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:QQReborn.App.Models"
+    Background="{StaticResource MetroBackgroundBrush}">
+    <ScrollViewer Padding="24,20">
+        <StackPanel MaxWidth="720">
+            <Button Content="‹ 返回动态" Click="Back_Click" HorizontalAlignment="Left"
+                    Background="Transparent" BorderThickness="0" Padding="0,4"
+                    Foreground="{StaticResource MetroAccentBrush}" />
+            <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                <Image Source="{Binding AuthorAvatarPath}" Width="48" Height="48" Stretch="UniformToFill" />
+                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding AuthorName}" FontSize="18" Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <TextBlock Text="{Binding TimeText}" FontSize="12" Margin="0,3,0,0" Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Text="{Binding Text}" FontSize="16" TextWrapping="Wrap" Margin="0,18,0,0"
+                       Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            <ItemsControl ItemsSource="{Binding ImagePaths}" Margin="0,14,0,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate><Image Source="{Binding}" MaxWidth="560" MaxHeight="420" Stretch="Uniform" Margin="0,0,0,10" /></DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Margin="0,14,0,14">
+                <Button x:Name="LikeButton" Click="Like_Click" Content="赞" Padding="18,8"
+                        Background="{StaticResource MetroPanelBrush}" BorderThickness="0" />
+                <TextBlock Text="{Binding LikeText}" VerticalAlignment="Center" Margin="8,0,20,0"
+                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+            </StackPanel>
+            <Border Background="{StaticResource MetroPanelBrush}" Padding="14">
+                <StackPanel>
+                    <TextBlock Text="评论" FontSize="16" Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <ItemsControl ItemsSource="{Binding Comments}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:MomentComment">
+                                <StackPanel Margin="0,0,0,10">
+                                    <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MetroPrimaryTextBrush}">
+                                        <Run Text="{Binding Author}" /><Run Text="：" /><Run Text="{Binding Text}" />
+                                    </TextBlock>
+                                    <ItemsControl ItemsSource="{Binding Replies}" Margin="18,4,0,0">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:MomentComment">
+                                                <TextBlock TextWrapping="Wrap" FontSize="13" Foreground="{StaticResource MetroSecondaryTextBrush}">
+                                                    <Run Text="{Binding Author}" /><Run Text="：" /><Run Text="{Binding Text}" />
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <TextBox x:Name="CommentBox" PlaceholderText="写评论…" Width="320" />
+                        <Button Content="发送" Click="SendComment_Click" Margin="8,0,0,0" Padding="16,8"
+                                Background="{StaticResource MetroAccentBrush}" Foreground="White" BorderThickness="0" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -196,6 +196,9 @@ namespace QQReborn.App.Services
         public Task<ChatMessage> ForwardMessageAsync(string targetConversationId, string messageId)
             => SendAsync(targetConversationId, MessageContentType.Text, "[转发记录]", null, null, 0);
 
+        public Task<ChatMessage> ForwardMessagesAsync(string targetConversationId, IReadOnlyList<string> messageIds)
+            => SendAsync(targetConversationId, MessageContentType.Forward, "合并转发", null, null, 0);
+
         public Task<ChatMessage> SendImageAsync(string conversationId, string imagePath)
             => SendAsync(conversationId, MessageContentType.Image, "[图片]", imagePath, null, 0);
 
@@ -230,9 +233,13 @@ namespace QQReborn.App.Services
         public Task<ChatMessage> SendVoiceAsync(string conversationId, string audioPath, int seconds)
             => SendAsync(conversationId, MessageContentType.Voice, "[语音]", null, audioPath, seconds);
 
-        public Task<ChatMessage> SendLocationAsync(string conversationId, string placeName, string address, string thumb)
+        public Task<ChatMessage> SendLocationAsync(string conversationId, string placeName, string address, string thumb,
+            double latitude = 0, double longitude = 0)
             => SendAsync(conversationId, MessageContentType.Location, "[位置]", null, null, 0,
                 m => { m.PlaceName = placeName; m.PlaceAddress = address; m.PlaceThumb = thumb; });
+
+        public Task<IReadOnlyList<string>> GetFavoriteStickersAsync()
+            => Task.FromResult<IReadOnlyList<string>>(new List<string>());
 
         public Task<IReadOnlyList<GroupMember>> GetGroupMembersAsync(string conversationId)
         {

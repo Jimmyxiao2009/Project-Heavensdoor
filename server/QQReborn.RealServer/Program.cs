@@ -43,8 +43,9 @@ app.Map("/ws", async context =>
 
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
     using var sendLock = new SemaphoreSlim(1, 1);
+    using var dispatchLock = new SemaphoreSlim(1, 1);
 
-    async Task SendAsync(string text)
+    async Task SendRawAsync(string text)
     {
         var bytes = Encoding.UTF8.GetBytes(text);
         await sendLock.WaitAsync();
@@ -59,7 +60,9 @@ app.Map("/ws", async context =>
         finally { sendLock.Release(); }
     }
 
-    var conn = hub.RegisterConnection(socket, SendAsync);
+    ClientConnection conn = null!;
+    conn = hub.RegisterConnection(socket, SendRawAsync);
+    async Task SendAsync(string text) => await conn!.SendSafeAsync(text);
     // Empty password = open (dev); non-empty = first frame must be type:auth.
     var authenticated = string.IsNullOrEmpty(accessPassword);
     Console.WriteLine($"[+] client {conn.Id[..8]}… ({context.Connection.RemoteIpAddress}) backend={hub.DefaultBackendId} authRequired={!authenticated}");
@@ -72,12 +75,14 @@ app.Map("/ws", async context =>
 
     async Task DispatchAsync(string text)
     {
+        await dispatchLock.WaitAsync();
         try
         {
             var reply = await HandleAsync(text, conn, hub);
             if (reply != null) await SendAsync(reply);
         }
         catch (Exception ex) { Console.WriteLine("[!] DispatchAsync: " + ex); }
+        finally { dispatchLock.Release(); }
     }
 
     const int MaxMessageBytes = 2 * 1024 * 1024;
@@ -299,6 +304,12 @@ async Task<string?> HandleAsync(string text, ClientConnection conn, SessionHub h
             case "getVoicePlayable":
                 (data, error) = await sessions.GetVoicePlayableAsync(S(req, "messageId") ?? "");
                 break;
+            case "getFavoriteStickers":
+                (data, error) = await sessions.GetFavoriteStickersAsync((int)N(req, "count"));
+                break;
+            case "getForwardDetails":
+                (data, error) = await sessions.GetForwardDetailsAsync(S(req, "messageId") ?? "");
+                break;
             case "getFileDownloadUrl":
                 (data, error) = await sessions.GetFileDownloadUrlAsync(
                     S(req, "conversationId") ?? "", S(req, "fileId") ?? "");
@@ -361,16 +372,23 @@ async Task<string?> HandleAsync(string text, ClientConnection conn, SessionHub h
                 data = sessions.SetSpaceLike(S(req, "momentId") ?? "", isLiked);
                 break;
             }
+            case "setSpaceComment":
+                data = sessions.SetSpaceComment(S(req, "momentId") ?? "", S(req, "text") ?? "");
+                break;
             case "send":
                 (data, error) = await sessions.SendAsync(
                     S(req, "conversationId") ?? "", S(req, "text") ?? "", S(req, "replyToId"),
                     S(req, "contentType") ?? "Text", S(req, "placeName"), S(req, "address"), S(req, "thumb"),
                     S(req, "imageBase64"), req["imagesBase64"], S(req, "audioBase64"), (int)N(req, "voiceSeconds"),
-                    S(req, "fileBase64"), S(req, "fileName"), S(req, "mentions"));
+                    S(req, "fileBase64"), S(req, "fileName"), S(req, "mentions"), N(req, "latitude"), N(req, "longitude"));
                 break;
             case "forward":
                 (data, error) = await sessions.ForwardAsync(
                     S(req, "conversationId") ?? "", S(req, "messageId") ?? "");
+                break;
+            case "forwardMany":
+                (data, error) = await sessions.ForwardManyAsync(
+                    S(req, "conversationId") ?? "", req["messageIds"] as JsonArray ?? new JsonArray());
                 break;
             case "configureAccount":
                 (data, error) = await sessions.ConfigureAccountAsync(

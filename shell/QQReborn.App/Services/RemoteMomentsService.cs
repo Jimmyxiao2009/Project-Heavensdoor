@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using QQReborn.App.Models;
@@ -6,8 +7,7 @@ namespace QQReborn.App.Services
 {
     /// <summary>
     /// Moments backed by RealServer's webhook-ingested 空间 feed (POST /webhook/space).
-    /// Like state is synchronized through RealServer; comments remain local until a
-    /// corresponding space write operation is available.
+    /// Likes and comments are synchronized through RealServer's native QZone client.
     /// </summary>
     public sealed class RemoteMomentsService : IMomentsService
     {
@@ -42,12 +42,14 @@ namespace QQReborn.App.Services
             m.IsLiked = next;
         }
 
-        public Task AddCommentAsync(Moment m, string text)
+        public async Task AddCommentAsync(Moment m, string text)
         {
-            if (m == null || string.IsNullOrWhiteSpace(text)) return Task.CompletedTask;
+            if (m == null || string.IsNullOrWhiteSpace(text)) return;
+            var trimmed = text.Trim();
+            if (!await _remote.SetSpaceCommentAsync(m.Id, trimmed))
+                throw new InvalidOperationException("评论发送失败，请检查 QQ 空间登录状态后重试");
             m.Comments.Add(new MomentComment { Author = "我", Text = text.Trim() });
             m.RaiseCommentsChanged();
-            return Task.CompletedTask;
         }
 
         public Task<bool> GetEarlierFeedAsync()
