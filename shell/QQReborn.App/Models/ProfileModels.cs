@@ -28,22 +28,6 @@ namespace QQReborn.App.Models
 
         public string AccessPassword { get; set; } = "";
 
-        /// <summary>Where the real-account sign (T544) requests go: false = Lagrange's
-        /// official community sign service (needs a #signer-registered API key), true = a
-        /// self-hosted sign server the user points at directly. Unused for NapCat local gateway.</summary>
-        public bool UseSelfHostedSignServer { get; set; } = false;
-
-        /// <summary>Sign server base URL. Ignored (assumed to be the official Lagrange URL)
-        /// when UseSelfHostedSignServer is false; user-provided when true.</summary>
-        public string SignServerUrl { get; set; } = "https://sign.lagrangecore.org";
-
-        /// <summary>Bearer token for the sign server. Required for the official service,
-        /// optional for a self-hosted one.</summary>
-        public string SignToken { get; set; } = "";
-
-        /// <summary>QQ number to log in as.</summary>
-        public string SignUin { get; set; } = "";
-
         // ---- 实用功能 (LocalSettings; defaults favour QQ-like power user) ----
 
         /// <summary>Keep peer-recalled messages visible locally (防撤回).</summary>

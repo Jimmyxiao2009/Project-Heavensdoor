@@ -40,10 +40,92 @@ public partial class MainWindow : Window
         Append("Repo: " + _mgr.RepoRoot);
         Append(_mgr.DescribeNapCatPaths());
         Append($"当前账号: {_mgr.NapCatUinDisplay}");
-        Append("本机 NapCat 网关管家。选账号 → 启动 NapCat / 启动网关。");
+        Append("推荐：点上方「一键安装并启动」完成下载 NapCat + 配置 + 开网关。");
         Append("Shell 只需填写地址、端口和此处的访问密码。");
         RefreshStatus();
         _ = ProbeNapCatQuietAsync();
+    }
+
+    private void SetBusy(bool busy, string? status = null)
+    {
+        OneClickBtn.IsEnabled = !busy;
+        InstallOnlyBtn.IsEnabled = !busy;
+        StartAllBtn.IsEnabled = !busy;
+        StartNapCatBtn.IsEnabled = !busy;
+        RestartNapCatBtn.IsEnabled = !busy;
+        if (status != null) OneClickStatus.Text = status;
+    }
+
+    private async void OneClick_Click(object sender, RoutedEventArgs e)
+    {
+        SetBusy(true, "进行中…");
+        NapCatStatus.Text = "准备中…";
+        NapCatDot.Fill = _bad;
+        try
+        {
+            PullUiIntoManager();
+            Append("—— 一键安装并启动 ——");
+            var result = await _mgr.OneClickSetupAsync();
+            AccessPasswordBox.Text = _mgr.AccessPassword;
+            OneClickStatus.Text = result.Success
+                ? (result.NapCatOnline ? "完成 · NapCat 在线" : "完成 · 等待 QQ 登录")
+                : "失败";
+            NapCatStatus.Text = result.NapCatOnline ? "在线" : (result.Success ? "已启动，等待登录" : "未连接");
+            NapCatDot.Fill = result.NapCatOnline ? _ok : _bad;
+
+            if (result.Success)
+            {
+                MessageBox.Show(
+                    result.Message + "\n\n" +
+                    $"访问密码: {_mgr.AccessPassword}\n" +
+                    $"网关端口: {_mgr.RealServerPort}\n" +
+                    "手机 Shell 填本机 IP / 端口 / 密码即可。",
+                    "一键安装并启动",
+                    MessageBoxButton.OK,
+                    result.NapCatOnline ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            }
+            else
+            {
+                MessageBox.Show(result.Message, "一键安装未完成", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            OneClickStatus.Text = "失败";
+            Append("一键流程异常: " + ex.Message);
+            MessageBox.Show(ex.Message, "一键安装失败", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+            RefreshStatus();
+        }
+    }
+
+    private async void InstallOnly_Click(object sender, RoutedEventArgs e)
+    {
+        SetBusy(true, "安装 NapCat…");
+        try
+        {
+            PullUiIntoManager();
+            await _mgr.InstallOrUpdateNapCatAsync();
+            OneClickStatus.Text = "NapCat 已安装";
+            MessageBox.Show(
+                "NapCat 已下载/更新并写入 OneBot 配置（HTTP 3000 / WS 3001）。\n" +
+                "可继续点「一键安装并启动」或「启动 NapCat」。",
+                "安装完成", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            OneClickStatus.Text = "安装失败";
+            Append("安装 NapCat 失败: " + ex.Message);
+            MessageBox.Show(ex.Message, "安装失败", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+            RefreshStatus();
+        }
     }
 
     private void LoadAccountsIntoUi()
@@ -155,8 +237,7 @@ public partial class MainWindow : Window
 
     private async void StartAll_Click(object sender, RoutedEventArgs e)
     {
-        StartAllBtn.IsEnabled = false;
-        StartNapCatBtn.IsEnabled = false;
+        SetBusy(true, "启动网关…");
         try
         {
             PullUiIntoManager();
@@ -168,6 +249,7 @@ public partial class MainWindow : Window
             var ok = await _mgr.CheckNapCatAsync();
             NapCatStatus.Text = ok ? "在线" : "未连接";
             NapCatDot.Fill = ok ? _ok : _bad;
+            OneClickStatus.Text = ok ? "网关运行中" : "网关已启 · NapCat 待登录";
         }
         catch (Exception ex)
         {
@@ -176,8 +258,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            StartAllBtn.IsEnabled = true;
-            StartNapCatBtn.IsEnabled = true;
+            SetBusy(false);
             RefreshStatus();
         }
     }
@@ -190,7 +271,7 @@ public partial class MainWindow : Window
 
     private async void StartNapCat_Click(object sender, RoutedEventArgs e)
     {
-        StartNapCatBtn.IsEnabled = false;
+        SetBusy(true, "启动 NapCat…");
         NapCatStatus.Text = "启动中…";
         NapCatDot.Fill = _bad;
         try
@@ -201,6 +282,7 @@ public partial class MainWindow : Window
             var ok = await _mgr.StartNapCatAsync(waitForOnline: true);
             NapCatStatus.Text = ok ? "在线" : "未连接";
             NapCatDot.Fill = ok ? _ok : _bad;
+            OneClickStatus.Text = ok ? "NapCat 在线" : "等待 QQ 登录";
             if (!ok)
             {
                 MessageBox.Show(
@@ -216,16 +298,14 @@ public partial class MainWindow : Window
         }
         finally
         {
-            StartNapCatBtn.IsEnabled = true;
+            SetBusy(false);
             RefreshStatus();
         }
     }
 
     private async void RestartNapCat_Click(object sender, RoutedEventArgs e)
     {
-        StartAllBtn.IsEnabled = false;
-        StartNapCatBtn.IsEnabled = false;
-        RestartNapCatBtn.IsEnabled = false;
+        SetBusy(true, "重启 NapCat…");
         NapCatStatus.Text = "重启中…";
         NapCatDot.Fill = _bad;
         try
@@ -239,6 +319,7 @@ public partial class MainWindow : Window
             var ok = await _mgr.RestartNapCatAsync(waitForOnline: false);
             NapCatStatus.Text = ok ? "在线" : "已启动，等待登录";
             NapCatDot.Fill = ok ? _ok : _bad;
+            OneClickStatus.Text = ok ? "NapCat 在线" : "已重启 · 等待登录";
         }
         catch (Exception ex)
         {
@@ -248,9 +329,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            StartAllBtn.IsEnabled = true;
-            StartNapCatBtn.IsEnabled = true;
-            RestartNapCatBtn.IsEnabled = true;
+            SetBusy(false);
             RefreshStatus();
         }
     }

@@ -7,8 +7,11 @@
     <Grid>
         <MediaElement x:Name="Player" AutoPlay="True" AreTransportControlsEnabled="True"
                       Stretch="Uniform" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-        <Button x:Name="BackButton" Click="BackButton_Click" Content="←" FontSize="24"
-                Foreground="White" Background="#66000000" BorderThickness="0"
-                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="8" Padding="12,6" />
+        <Button x:Name="BackButton" Click="BackButton_Click"
+                Style="{StaticResource ModernIconButtonStyle}"
+                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,6,0,0"
+                Background="#66000000">
+            <FontIcon Glyph="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="White" />
+        </Button>
     </Grid>
 </Page>

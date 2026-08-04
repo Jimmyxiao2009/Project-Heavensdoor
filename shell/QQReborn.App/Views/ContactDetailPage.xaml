@@ -12,132 +12,123 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- 标题头部 -->
-        <Grid Grid.Row="0" Margin="24,12,16,4">
+        <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="详细资料" FontSize="13" CharacterSpacing="40"
-                       VerticalAlignment="Center"
-                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
-            <Button Grid.Column="1" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
-                    BorderThickness="0" Padding="10,6" VerticalAlignment="Center"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="22" Content="&#x2190;" />
+            <Button Grid.Column="0" x:Name="BackButton" Click="BackButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}">
+                <FontIcon Glyph="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                          Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            </Button>
+            <TextBlock Grid.Column="1" Text="详细资料" Style="{StaticResource ModernHeaderTitleStyle}" />
         </Grid>
 
-        <!-- 资料主体 -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="24,8,20,8">
+            <StackPanel Margin="14,14,14,16">
 
-                <!-- 头像 + 名称 -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Rectangle Grid.Column="0" Width="96" Height="96" VerticalAlignment="Top">
-                        <Rectangle.Fill>
-                            <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
-                        </Rectangle.Fill>
-                    </Rectangle>
-                    <StackPanel Grid.Column="1" Margin="16,2,0,0" VerticalAlignment="Top">
-                        <TextBlock Text="{Binding DisplayName}" FontSize="30" FontWeight="Light"
-                                   CharacterSpacing="-20"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding UinText}" FontSize="14" FontWeight="Light" Margin="0,6,0,0"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Ellipse Width="9" Height="9" VerticalAlignment="Center"
-                                     Fill="{StaticResource MetroAccentBrush}"
-                                     Visibility="{Binding Online, Converter={StaticResource BoolToVisibility}}" />
-                            <Ellipse Width="9" Height="9" VerticalAlignment="Center"
-                                     Fill="{StaticResource MetroSubtleBrush}"
-                                     Visibility="{Binding Online, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
-                            <TextBlock Text="{Binding StatusText}" FontSize="13" Margin="7,0,0,0"
-                                       VerticalAlignment="Center"
+                <Border Style="{StaticResource ModernCardStyle}" Padding="16,16" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Ellipse Grid.Column="0" Width="80" Height="80" VerticalAlignment="Top">
+                            <Ellipse.Fill>
+                                <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
+                            </Ellipse.Fill>
+                        </Ellipse>
+                        <StackPanel Grid.Column="1" Margin="14,2,0,0" VerticalAlignment="Top">
+                            <TextBlock Text="{Binding DisplayName}" FontSize="22" FontWeight="SemiBold"
+                                       Foreground="{StaticResource MetroPrimaryTextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding UinText}" FontSize="13" Margin="0,6,0,0"
                                        Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                                         Fill="{StaticResource ModernSuccessBrush}"
+                                         Visibility="{Binding Online, Converter={StaticResource BoolToVisibility}}" />
+                                <Ellipse Width="9" Height="9" VerticalAlignment="Center"
+                                         Fill="{StaticResource MetroSubtleBrush}"
+                                         Visibility="{Binding Online, Converter={StaticResource BoolToVisibility}, ConverterParameter=invert}" />
+                                <TextBlock Text="{Binding StatusText}" FontSize="12" Margin="7,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </Grid>
+                    </Grid>
+                </Border>
 
-                <!-- 个性签名 -->
-                <Border Background="{StaticResource MetroPanelBrush}" Padding="14,12" Margin="0,24,0,0">
+                <Border Style="{StaticResource ModernSettingsCardStyle}" Padding="14,12">
                     <StackPanel>
-                        <TextBlock Text="个性签名" FontSize="12" CharacterSpacing="30"
+                        <TextBlock Text="个性签名" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                        <TextBlock Text="{Binding SignatureText}" FontSize="15" FontWeight="Light" Margin="0,6,0,0"
+                        <TextBlock Text="{Binding SignatureText}" FontSize="14" Margin="0,8,0,0"
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource MetroPrimaryTextBrush}" />
                     </StackPanel>
                 </Border>
 
-                <!-- 资料块 -->
-                <Border Background="{StaticResource MetroPanelBrush}" Padding="14,12" Margin="0,12,0,0">
+                <Border Style="{StaticResource ModernSettingsCardStyle}" Padding="14,12">
                     <StackPanel>
-                        <TextBlock Text="资料" FontSize="12" CharacterSpacing="30"
+                        <TextBlock Text="资料" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                        <TextBlock Text="{Binding DetailText}" FontSize="15" FontWeight="Light" Margin="0,8,0,0"
+                        <TextBlock Text="{Binding DetailText}" FontSize="14" Margin="0,8,0,0"
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <Grid Margin="0,10,0,0">
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" Margin="0,12" />
+                        <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="在线状态" FontSize="14" FontWeight="Light"
+                            <TextBlock Grid.Column="0" Text="在线状态" FontSize="14"
                                        Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="14" FontWeight="Light"
+                            <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="14"
                                        HorizontalAlignment="Right"
                                        Foreground="{StaticResource MetroPrimaryTextBrush}" />
                         </Grid>
-                        <Grid Margin="0,10,0,0" Tapped="RemarkRow_Tapped">
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" Margin="0,12" />
+                        <Grid Tapped="RemarkRow_Tapped">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="备注" FontSize="14" FontWeight="Light"
+                            <TextBlock Grid.Column="0" Text="备注" FontSize="14"
                                        Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                            <TextBlock Grid.Column="1" x:Name="RemarkText" Text="" FontSize="14" FontWeight="Light"
+                            <TextBlock Grid.Column="1" x:Name="RemarkText" Text="" FontSize="14"
                                        HorizontalAlignment="Right" Margin="12,0,8,0"
                                        TextTrimming="CharacterEllipsis"
                                        Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                            <TextBlock Grid.Column="2" Text="&#x270E;" FontSize="16"
+                            <FontIcon Grid.Column="2" Glyph="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"
                                        Foreground="{StaticResource MetroSecondaryTextBrush}" />
                         </Grid>
                     </StackPanel>
                 </Border>
 
                 <Button Content="删除好友" Click="DeleteFriend_Click"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                        Background="{StaticResource MetroPanelBrush}"
-                        Foreground="{StaticResource MetroDangerBrush}"
-                        BorderThickness="0" Padding="0,14" FontSize="15" Margin="0,16,0,0" />
-
+                        Style="{StaticResource ModernDangerButtonStyle}" Margin="0,4,0,0" />
             </StackPanel>
         </ScrollViewer>
 
-        <!-- 底部操作 -->
-        <Grid Grid.Row="2" Background="{StaticResource MetroPanelBrush}" Padding="20,12" Margin="0,8,0,0">
+        <Grid Grid.Row="2" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,1,0,0"
+              Padding="14,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="10" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Button Grid.Column="0" x:Name="LikeButton" Content="赞一下"
                     Click="LikeButton_Click"
-                    Background="{StaticResource MetroPanelBrush}"
-                    Foreground="{StaticResource MetroAccentBrush}"
-                    BorderBrush="{StaticResource MetroAccentBrush}" BorderThickness="1"
-                    Padding="0,12" HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center" FontSize="16" />
+                    Style="{StaticResource MetroChromeButtonStyle}"
+                    Foreground="{StaticResource MetroAccentBrush}" Padding="0,12" />
             <Button Grid.Column="2" x:Name="MessageButton" Content="发消息"
                     Click="MessageButton_Click"
-                    Background="{StaticResource MetroAccentBrush}" Foreground="White"
-                    BorderThickness="0" Padding="0,12" HorizontalAlignment="Stretch"
-                    HorizontalContentAlignment="Center" FontSize="16" />
+                    Style="{StaticResource MetroAccentButtonStyle}" Padding="0,12" />
         </Grid>
     </Grid>
 </Page>

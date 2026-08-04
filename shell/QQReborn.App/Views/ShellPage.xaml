@@ -1,0 +1,169 @@
+<Page
+    x:Class="QQReborn.App.Views.ShellPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{StaticResource MetroBackgroundBrush}">
+
+    <Page.BottomAppBar>
+        <CommandBar x:Name="MainBar"
+                    Style="{StaticResource ModernCommandBarStyle}"
+                    OverflowButtonVisibility="Collapsed"
+                    ClosedDisplayMode="Compact"
+                    IsOpen="False">
+            <AppBarButton x:Name="NavChats" Style="{StaticResource ModernAppBarButtonStyle}"
+                          Icon="Message" Label="消息" Click="NavChats_Click" />
+            <AppBarButton x:Name="NavContacts" Style="{StaticResource ModernAppBarButtonStyle}"
+                          Icon="Contact" Label="联系人" Click="NavContacts_Click" />
+            <AppBarButton x:Name="NavMoments" Style="{StaticResource ModernAppBarButtonStyle}"
+                          Icon="Emoji2" Label="动态" Click="NavMoments_Click" />
+            <AppBarButton x:Name="NavMe" Style="{StaticResource ModernAppBarButtonStyle}"
+                          Icon="ContactInfo" Label="我" Click="NavMe_Click" />
+        </CommandBar>
+    </Page.BottomAppBar>
+
+    <Grid>
+        <SplitView x:Name="RootSplit"
+                   DisplayMode="Overlay"
+                   OpenPaneLength="300"
+                   PaneBackground="{StaticResource MetroChromeBrush}"
+                   IsPaneOpen="False">
+            <SplitView.Pane>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Brand -->
+                    <Border Grid.Row="0" Background="{StaticResource MetroPanelBrush}"
+                            BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1"
+                            Padding="20,28,16,22">
+                        <StackPanel>
+                            <Border Width="40" Height="40" CornerRadius="12"
+                                    Background="{StaticResource MetroAccentBrush}" Margin="0,0,0,12"
+                                    HorizontalAlignment="Left">
+                                <TextBlock Text="Q" FontSize="20" FontWeight="Bold" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="QQ Reborn" FontSize="20" FontWeight="SemiBold"
+                                       Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                            <TextBlock Text="家用网关 · 现代客户端" FontSize="12" Margin="0,6,0,0"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                        </StackPanel>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Padding="8,14,8,12">
+                            <TextBlock Text="快捷" Style="{StaticResource MetroSectionLabelStyle}" Margin="14,0,0,6" />
+                            <Button Style="{StaticResource ModernNavItemStyle}" Click="MenuSearch_Click" Tag="search">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="32" Height="32" CornerRadius="8" Background="{StaticResource ModernAccentSoftBrush}" Margin="0,0,12,0">
+                                        <FontIcon Glyph="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                  Foreground="{StaticResource MetroAccentBrush}"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="搜索" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource ModernNavItemStyle}" Click="MenuGateway_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="32" Height="32" CornerRadius="8" Background="{StaticResource ModernAccentSoftBrush}" Margin="0,0,12,0">
+                                        <FontIcon Glyph="&#xE774;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                  Foreground="{StaticResource MetroAccentBrush}"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="连接网关" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource ModernNavItemStyle}" Click="MenuSettings_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="32" Height="32" CornerRadius="8" Background="{StaticResource ModernElevatedBrush}" Margin="0,0,12,0">
+                                        <FontIcon Glyph="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                                  Foreground="{StaticResource MetroPrimaryTextBrush}"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="设置" VerticalAlignment="Center" FontSize="15" FontWeight="SemiBold" />
+                                </StackPanel>
+                            </Button>
+
+                            <Border Style="{StaticResource ModernDividerStyle}" Margin="14,12" />
+
+                            <TextBlock Text="会话" Style="{StaticResource MetroSectionLabelStyle}" Margin="14,0,0,6" />
+                            <Button Style="{StaticResource ModernNavItemStyle}" Click="MenuMarkAllRead_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <FontIcon Glyph="&#xE8FB;" FontFamily="Segoe MDL2 Assets" FontSize="16" Margin="8,0,14,0"
+                                              Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                                    <TextBlock Text="全部已读" VerticalAlignment="Center" FontSize="15" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource ModernNavItemStyle}" Click="MenuMuteAll_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <FontIcon Glyph="&#xE74F;" FontFamily="Segoe MDL2 Assets" FontSize="16" Margin="8,0,14,0"
+                                              Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                                    <TextBlock Text="全部免打扰" VerticalAlignment="Center" FontSize="15" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource ModernNavItemStyle}" Click="MenuUnmuteAll_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <FontIcon Glyph="&#xE767;" FontFamily="Segoe MDL2 Assets" FontSize="16" Margin="8,0,14,0"
+                                              Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                                    <TextBlock Text="恢复通知" VerticalAlignment="Center" FontSize="15" />
+                                </StackPanel>
+                            </Button>
+                            <Button Style="{StaticResource ModernNavItemStyle}" Click="MenuRefresh_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <FontIcon Glyph="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="16" Margin="8,0,14,0"
+                                              Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                                    <TextBlock Text="刷新" VerticalAlignment="Center" FontSize="15" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <TextBlock Grid.Row="2" Margin="20,8,20,22" FontSize="11"
+                               Foreground="{StaticResource MetroSecondaryTextBrush}"
+                               Text="底栏切换主页 · 侧栏打开更多" />
+                </Grid>
+            </SplitView.Pane>
+
+            <SplitView.Content>
+                <Grid Background="{StaticResource MetroBackgroundBrush}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+                          BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Click="Hamburger_Click"
+                                Style="{StaticResource ModernIconButtonStyle}"
+                                ToolTipService.ToolTip="菜单">
+                            <FontIcon Glyph="&#xE700;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                                      Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        </Button>
+                        <TextBlock x:Name="TitleText" Grid.Column="1" Text="消息"
+                                   Style="{StaticResource ModernHeaderTitleStyle}" />
+                        <Button Grid.Column="2" Click="MenuSearch_Click"
+                                Style="{StaticResource ModernIconButtonStyle}"
+                                ToolTipService.ToolTip="搜索">
+                            <Border Width="34" Height="34" CornerRadius="17"
+                                    Background="{StaticResource ModernElevatedBrush}">
+                                <FontIcon Glyph="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                          Foreground="{StaticResource MetroPrimaryTextBrush}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                        </Button>
+                    </Grid>
+
+                    <Frame x:Name="ContentFrame" Grid.Row="1" />
+                </Grid>
+            </SplitView.Content>
+        </SplitView>
+    </Grid>
+</Page>

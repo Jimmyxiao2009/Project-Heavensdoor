@@ -105,7 +105,7 @@ namespace QQReborn.App.Views
             e.Handled = true;
             if (_avatarBusy) return;
 
-            if (!(App.ChatService is RemoteChatService remote))
+            if (AppServices.Gateway == null)
             {
                 // Mock backend: no real account to push an avatar to -- say so honestly
                 // instead of silently doing nothing (which reads as a dead/broken tap target).
@@ -137,7 +137,7 @@ namespace QQReborn.App.Views
                 bool ok;
                 try
                 {
-                    ok = await remote.SetAvatarAsync(base64);
+                    ok = await AppServices.Gateway.SetAvatarAsync(base64);
                 }
                 catch (Exception)
                 {
@@ -227,7 +227,7 @@ namespace QQReborn.App.Views
         private async void StatusRow_Tapped(object sender, TappedRoutedEventArgs e)
         {
             e.Handled = true;
-            var remote = App.ChatService as RemoteChatService;
+            var remote = AppServices.Gateway;
             if (remote == null)
             {
                 // Mock: local-only status flip still useful for UI demo.
@@ -339,7 +339,7 @@ namespace QQReborn.App.Views
 
         private async Task EditProfileFieldAsync(bool editNickname)
         {
-            var remote = App.ChatService as RemoteChatService;
+            var remote = AppServices.Gateway;
             if (remote == null)
             {
                 await ShowMessageAsync("演示模式不支持修改资料。", "提示");

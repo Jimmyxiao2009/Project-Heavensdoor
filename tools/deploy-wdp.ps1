@@ -178,7 +178,7 @@ function Install-ViaDevicePortal {
   $state = Get-DevicePortalSession -DeviceIp $DeviceIp
   Write-Host "Device Portal CSRF acquired"
 
-  $fullName = "QQReborn.App_0.1.0.0_arm__v51r6sgtx3ez2"
+  $fullName = "QQReborn.App_0.2.0.0_arm__v51r6sgtx3ez2"
 
   # Best-effort uninstall of same identity so reinstall is not blocked.
   try {

@@ -38,19 +38,15 @@
                    Visibility="Collapsed"
                    IsHitTestVisible="False" />
 
-        <!-- Top chrome -->
-        <Grid x:Name="TopChrome" VerticalAlignment="Top" Height="52" Background="#66000000">
+        <Grid x:Name="TopChrome" VerticalAlignment="Top" Height="52" Background="#99000000">
             <Button x:Name="BackButton"
                     Click="BackButton_Click"
-                    Content="←"
-                    FontSize="22"
-                    Foreground="White"
-                    Background="Transparent"
-                    BorderThickness="0"
+                    Style="{StaticResource ModernIconButtonStyle}"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center"
-                    Margin="4,0,0,0"
-                    Padding="14,8" />
+                    Margin="4,0,0,0">
+                <FontIcon Glyph="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18" Foreground="White" />
+            </Button>
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
                 <TextBlock x:Name="IndexLabel"
                            Text=""
@@ -66,37 +62,35 @@
             </StackPanel>
         </Grid>
 
-        <!-- Side prev/next (visible when gallery has >1) -->
         <Button x:Name="PrevButton"
-                Content="‹"
                 Click="PrevButton_Click"
-                FontSize="36"
+                FontSize="28"
                 Foreground="White"
                 Background="#44000000"
                 BorderThickness="0"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
-                Margin="4,0,0,0"
-                Padding="10,20"
+                Margin="6,0,0,0"
+                Padding="12,18"
+                Content="‹"
                 Visibility="Collapsed" />
         <Button x:Name="NextButton"
-                Content="›"
                 Click="NextButton_Click"
-                FontSize="36"
+                FontSize="28"
                 Foreground="White"
                 Background="#44000000"
                 BorderThickness="0"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Center"
-                Margin="0,0,4,0"
-                Padding="10,20"
+                Margin="0,0,6,0"
+                Padding="12,18"
+                Content="›"
                 Visibility="Collapsed" />
 
-        <!-- Bottom actions -->
         <Border x:Name="BottomChrome"
                 VerticalAlignment="Bottom"
-                Background="#66000000"
-                Padding="12,10">
+                Background="#99000000"
+                Padding="12,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                 <Button x:Name="FitButton"
                         Content="适应"
@@ -104,26 +98,29 @@
                         Foreground="White"
                         Background="#33FFFFFF"
                         BorderThickness="0"
-                        Padding="16,8"
+                        Padding="16,9"
                         Margin="0,0,8,0"
-                        FontSize="14" />
+                        FontSize="13"
+                        FontWeight="SemiBold" />
                 <Button x:Name="OneToOneButton"
                         Content="1:1"
                         Click="OneToOneButton_Click"
                         Foreground="White"
                         Background="#33FFFFFF"
                         BorderThickness="0"
-                        Padding="16,8"
+                        Padding="16,9"
                         Margin="0,0,8,0"
-                        FontSize="14" />
+                        FontSize="13"
+                        FontWeight="SemiBold" />
                 <Button x:Name="SaveButton"
                         Content="保存"
                         Click="SaveButton_Click"
                         Foreground="White"
                         Background="#3312B7F5"
                         BorderThickness="0"
-                        Padding="20,8"
-                        FontSize="14"
+                        Padding="20,9"
+                        FontSize="13"
+                        FontWeight="SemiBold"
                         IsEnabled="False" />
             </StackPanel>
         </Border>
@@ -131,9 +128,9 @@
         <Border x:Name="Toast"
                 VerticalAlignment="Center"
                 HorizontalAlignment="Center"
-                Background="#CC222222"
+                Background="#CC1B222C"
                 Padding="18,10"
-                CornerRadius="4"
+                CornerRadius="12"
                 Visibility="Collapsed"
                 IsHitTestVisible="False">
             <TextBlock x:Name="ToastText" Text="" Foreground="White" FontSize="14" />

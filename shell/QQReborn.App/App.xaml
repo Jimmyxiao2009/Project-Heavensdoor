@@ -14,7 +14,7 @@
             <services:UiScaleService x:Key="UiScale" />
             <mvvm:BoolToBrushConverter x:Key="PinnedRowBrush">
                 <mvvm:BoolToBrushConverter.TrueBrush>
-                    <SolidColorBrush Color="#FF1A1A1A" />
+                    <SolidColorBrush Color="#FF141A22" />
                 </mvvm:BoolToBrushConverter.TrueBrush>
                 <mvvm:BoolToBrushConverter.FalseBrush>
                     <SolidColorBrush Color="Transparent" />
@@ -26,19 +26,25 @@
                 <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
 
-            <!-- Classic WP7.5/8 dark Metro palette -->
-            <Color x:Key="MetroBackgroundColor">#FF000000</Color>
-            <Color x:Key="MetroPanelColor">#FF1F1F1F</Color>
-            <Color x:Key="MetroChromeColor">#FF1A1A1A</Color>
-            <Color x:Key="MetroPrimaryTextColor">#FFFFFFFF</Color>
-            <Color x:Key="MetroSecondaryTextColor">#FFA0A0A0</Color>
-            <Color x:Key="MetroSubtleColor">#FF2A2A2A</Color>
-            <!-- Keep QQ-tinted accent (WP cyan family) -->
+            <!--
+              Modern dark shell — QQ accent retained.
+              Tokens keep Metro* names for existing bindings / code-behind.
+            -->
+            <Color x:Key="MetroBackgroundColor">#FF0A0C10</Color>
+            <Color x:Key="MetroPanelColor">#FF151A22</Color>
+            <Color x:Key="MetroChromeColor">#FF0F1319</Color>
+            <Color x:Key="MetroPrimaryTextColor">#FFF3F5F8</Color>
+            <Color x:Key="MetroSecondaryTextColor">#FF8E97A5</Color>
+            <Color x:Key="MetroSubtleColor">#FF222833</Color>
             <Color x:Key="MetroAccentColor">#FF12B7F5</Color>
             <Color x:Key="MetroAccentDarkColor">#FF0A8FBF</Color>
-            <Color x:Key="MetroDangerColor">#FFE51400</Color>
-            <Color x:Key="MetroBubbleOtherColor">#FF1C1C1C</Color>
-            <Color x:Key="MetroPivotInactiveColor">#FF6A6A6A</Color>
+            <Color x:Key="MetroDangerColor">#FFFF4D4F</Color>
+            <Color x:Key="MetroBubbleOtherColor">#FF1C2430</Color>
+            <Color x:Key="MetroPivotInactiveColor">#FF6A7380</Color>
+            <Color x:Key="ModernElevatedColor">#FF1B222C</Color>
+            <Color x:Key="ModernBubbleMeColor">#FF0E8EC4</Color>
+            <Color x:Key="ModernHairlineColor">#22FFFFFF</Color>
+            <Color x:Key="ModernSuccessColor">#FF3DDC97</Color>
 
             <SolidColorBrush x:Key="MetroBackgroundBrush" Color="{StaticResource MetroBackgroundColor}" />
             <SolidColorBrush x:Key="MetroPanelBrush" Color="{StaticResource MetroPanelColor}" />
@@ -51,45 +57,47 @@
             <SolidColorBrush x:Key="MetroDangerBrush" Color="{StaticResource MetroDangerColor}" />
             <SolidColorBrush x:Key="MetroBubbleOtherBrush" Color="{StaticResource MetroBubbleOtherColor}" />
             <SolidColorBrush x:Key="MetroPivotInactiveBrush" Color="{StaticResource MetroPivotInactiveColor}" />
+            <SolidColorBrush x:Key="ModernElevatedBrush" Color="{StaticResource ModernElevatedColor}" />
+            <SolidColorBrush x:Key="ModernBubbleMeBrush" Color="{StaticResource ModernBubbleMeColor}" />
+            <SolidColorBrush x:Key="ModernHairlineBrush" Color="{StaticResource ModernHairlineColor}" />
+            <SolidColorBrush x:Key="ModernSuccessBrush" Color="{StaticResource ModernSuccessColor}" />
+            <SolidColorBrush x:Key="ModernAccentSoftBrush" Color="#3312B7F5" />
+            <SolidColorBrush x:Key="ModernDangerSoftBrush" Color="#33FF4D4F" />
+            <SolidColorBrush x:Key="ModernOverlayBrush" Color="#CC0A0C10" />
 
-            <!-- Tiny uppercase page chrome above the panorama title -->
+            <!-- Typography -->
             <Style x:Key="MetroPageTitleStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="13" />
-                <Setter Property="FontWeight" Value="Normal" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="Foreground" Value="{StaticResource MetroSecondaryTextBrush}" />
-                <Setter Property="CharacterSpacing" Value="60" />
-                <Setter Property="Margin" Value="0,0,0,0" />
-            </Style>
-
-            <!-- Panorama app title — phone-tuned (was 68, too large on 5"+ screens) -->
-            <Style x:Key="MetroPanoramaTitleStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="52" />
-                <Setter Property="FontWeight" Value="Light" />
-                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
-                <Setter Property="CharacterSpacing" Value="-40" />
-                <Setter Property="LineHeight" Value="56" />
-                <Setter Property="TextLineBounds" Value="Tight" />
-            </Style>
-
-            <!-- Sub-page hero title (settings / login) -->
-            <Style x:Key="MetroHeroTitleStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="34" />
-                <Setter Property="FontWeight" Value="Light" />
-                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
-                <Setter Property="CharacterSpacing" Value="-20" />
-            </Style>
-
-            <!-- Section label above a block of settings -->
-            <Style x:Key="MetroSectionLabelStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="13" />
                 <Setter Property="CharacterSpacing" Value="40" />
-                <Setter Property="Foreground" Value="{StaticResource MetroAccentBrush}" />
-                <Setter Property="Margin" Value="0,16,0,8" />
+            </Style>
+
+            <Style x:Key="MetroPanoramaTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="28" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
+                <Setter Property="CharacterSpacing" Value="-10" />
+            </Style>
+
+            <Style x:Key="MetroHeroTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="26" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
+                <Setter Property="CharacterSpacing" Value="-10" />
+            </Style>
+
+            <Style x:Key="MetroSectionLabelStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="CharacterSpacing" Value="40" />
+                <Setter Property="Foreground" Value="{StaticResource MetroSecondaryTextBrush}" />
+                <Setter Property="Margin" Value="4,18,0,8" />
             </Style>
 
             <Style x:Key="MetroBodyTextStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="17" />
-                <Setter Property="FontWeight" Value="Light" />
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontWeight" Value="Normal" />
                 <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
             </Style>
 
@@ -98,42 +106,51 @@
                 <Setter Property="Foreground" Value="{StaticResource MetroSecondaryTextBrush}" />
             </Style>
 
-            <!-- Pivot: let headers breathe; next header peeks dimmed by platform -->
+            <Style x:Key="ModernTitleTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="18" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
+            </Style>
+
+            <Style x:Key="ModernSubtitleTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Foreground" Value="{StaticResource MetroSecondaryTextBrush}" />
+            </Style>
+
+            <!-- Pivot (legacy / unused on shell but kept) -->
             <Style x:Key="MetroPivotStyle" TargetType="Pivot">
                 <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Padding" Value="0" />
             </Style>
 
-            <!-- Keep every home Pivot section on the same content rhythm. -->
             <Style x:Key="MetroPivotItemStyle" TargetType="PivotItem">
                 <Setter Property="Margin" Value="0" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
             </Style>
 
-            <!-- Pivot headers — phone-tuned (was 42/72; oversized on modern Lumia screens) -->
             <Style TargetType="PivotHeaderItem">
-                <Setter Property="FontSize" Value="34" />
-                <Setter Property="FontWeight" Value="Light" />
-                <Setter Property="CharacterSpacing" Value="-20" />
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="CharacterSpacing" Value="-10" />
                 <Setter Property="MinHeight" Value="0" />
-                <Setter Property="Height" Value="60" />
-                <Setter Property="Padding" Value="0,0,22,10" />
+                <Setter Property="Height" Value="52" />
+                <Setter Property="Padding" Value="0,0,20,8" />
                 <Setter Property="Margin" Value="0" />
                 <Setter Property="VerticalContentAlignment" Value="Bottom" />
                 <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
                 <Setter Property="Background" Value="Transparent" />
             </Style>
 
-            <!-- Flat list rows -->
+            <!-- Lists -->
             <Style x:Key="MetroListViewItemStyle" TargetType="ListViewItem">
                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                 <Setter Property="Padding" Value="0" />
                 <Setter Property="MinHeight" Value="0" />
                 <Setter Property="Margin" Value="0" />
                 <Setter Property="Background" Value="Transparent" />
-                <Setter Property="BorderBrush" Value="{StaticResource MetroSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ModernHairlineBrush}" />
                 <Setter Property="BorderThickness" Value="0,0,0,1" />
             </Style>
 
@@ -145,46 +162,74 @@
                 <Setter Property="ItemContainerStyle" Value="{StaticResource MetroListViewItemStyle}" />
             </Style>
 
-            <!-- Search chrome (tap-through bar) -->
+            <Style x:Key="ModernListStyle" TargetType="ListView" BasedOn="{StaticResource MetroListStyle}">
+                <Setter Property="Padding" Value="0,2,0,8" />
+            </Style>
+
+            <!-- Surfaces -->
             <Style x:Key="MetroSearchBarStyle" TargetType="Border">
                 <Setter Property="Background" Value="{StaticResource MetroPanelBrush}" />
-                <Setter Property="BorderBrush" Value="{StaticResource MetroSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ModernHairlineBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="MinHeight" Value="44" />
-                <Setter Property="Margin" Value="0,0,19,12" />
-                <Setter Property="Padding" Value="14,0,12,0" />
+                <Setter Property="CornerRadius" Value="22" />
+                <Setter Property="MinHeight" Value="40" />
+                <Setter Property="Margin" Value="12,8,12,8" />
+                <Setter Property="Padding" Value="14,0,14,0" />
             </Style>
 
-            <!-- A restrained outline for dense, related controls such as shortcuts and feed cards. -->
+            <Style x:Key="ModernSearchBarStyle" TargetType="Border" BasedOn="{StaticResource MetroSearchBarStyle}">
+                <Setter Property="Background" Value="{StaticResource ModernElevatedBrush}" />
+                <Setter Property="MinHeight" Value="42" />
+            </Style>
+
             <Style x:Key="MetroSectionSurfaceStyle" TargetType="Border">
                 <Setter Property="Background" Value="{StaticResource MetroPanelBrush}" />
-                <Setter Property="BorderBrush" Value="{StaticResource MetroSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ModernHairlineBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="14" />
             </Style>
 
-            <!-- Accent primary button -->
+            <Style x:Key="ModernCardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource MetroPanelBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ModernHairlineBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="14" />
+                <Setter Property="Padding" Value="4,2" />
+            </Style>
+
+            <Style x:Key="ModernSettingsCardStyle" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource MetroPanelBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ModernHairlineBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="14" />
+                <Setter Property="Padding" Value="14,4" />
+                <Setter Property="Margin" Value="0,0,0,12" />
+            </Style>
+
+            <!-- Buttons -->
             <Style x:Key="MetroAccentButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="{StaticResource MetroAccentBrush}" />
                 <Setter Property="Foreground" Value="White" />
                 <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Padding" Value="20,10" />
-                <Setter Property="FontSize" Value="16" />
-                <Setter Property="FontWeight" Value="SemiLight" />
-                <Setter Property="HorizontalAlignment" Value="Stretch" />
-            </Style>
-
-            <!-- Ghost / chrome button -->
-            <Style x:Key="MetroChromeButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="{StaticResource MetroPanelBrush}" />
-                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
-                <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Padding" Value="16,10" />
+                <Setter Property="Padding" Value="20,11" />
                 <Setter Property="FontSize" Value="15" />
-                <Setter Property="FontWeight" Value="SemiLight" />
+                <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
             </Style>
 
-            <!-- WP live-tile style block for quick panel -->
+            <Style x:Key="MetroChromeButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource ModernElevatedBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ModernHairlineBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="16,10" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+            </Style>
+
             <Style x:Key="MetroTileButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="{StaticResource MetroAccentBrush}" />
                 <Setter Property="Foreground" Value="White" />
@@ -193,9 +238,9 @@
                 <Setter Property="VerticalAlignment" Value="Stretch" />
                 <Setter Property="HorizontalContentAlignment" Value="Left" />
                 <Setter Property="VerticalContentAlignment" Value="Bottom" />
-                <Setter Property="Padding" Value="12,12" />
+                <Setter Property="Padding" Value="14,14" />
                 <Setter Property="FontSize" Value="15" />
-                <Setter Property="FontWeight" Value="SemiLight" />
+                <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="MinHeight" Value="88" />
             </Style>
 
@@ -204,23 +249,113 @@
                 <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
             </Style>
 
-            <!-- Bottom application bar -->
+            <Style x:Key="ModernGhostButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{StaticResource MetroAccentBrush}" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <Style x:Key="ModernDangerButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource ModernDangerSoftBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource MetroDangerBrush}" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="0,14" />
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="ModernPillButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource MetroAccentBrush}" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="16,8" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="MinHeight" Value="34" />
+            </Style>
+
+            <!-- Chrome / nav -->
             <Style x:Key="MetroCommandBarStyle" TargetType="CommandBar">
                 <Setter Property="Background" Value="{StaticResource MetroChromeBrush}" />
                 <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
                 <Setter Property="ClosedDisplayMode" Value="Compact" />
             </Style>
 
-            <Style x:Key="MetroAppBarButtonStyle" TargetType="AppBarButton">
-                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
-                <Setter Property="Width" Value="68" />
+            <Style x:Key="ModernCommandBarStyle" TargetType="CommandBar" BasedOn="{StaticResource MetroCommandBarStyle}">
+                <Setter Property="Background" Value="{StaticResource MetroChromeBrush}" />
+                <Setter Property="ClosedDisplayMode" Value="Compact" />
             </Style>
 
-            <!-- Profile / settings menu row -->
+            <Style x:Key="ModernAppBarButtonStyle" TargetType="AppBarButton">
+                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
+                <Setter Property="Width" Value="76" />
+            </Style>
+
+            <Style x:Key="MetroAppBarButtonStyle" TargetType="AppBarButton" BasedOn="{StaticResource ModernAppBarButtonStyle}" />
+
+            <Style x:Key="ModernIconButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="12,10" />
+                <Setter Property="MinWidth" Value="48" />
+                <Setter Property="MinHeight" Value="48" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+            </Style>
+
+            <Style x:Key="ModernNavItemStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Padding" Value="14,12" />
+                <Setter Property="Margin" Value="6,2" />
+                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
+            </Style>
+
+            <Style x:Key="ModernPageHeaderStyle" TargetType="Grid">
+                <Setter Property="Height" Value="52" />
+                <Setter Property="Background" Value="{StaticResource MetroChromeBrush}" />
+            </Style>
+
             <Style x:Key="MetroMenuRowStyle" TargetType="Grid">
                 <Setter Property="Background" Value="Transparent" />
-                <Setter Property="MinHeight" Value="56" />
-                <Setter Property="Margin" Value="0,0,0,0" />
+                <Setter Property="MinHeight" Value="54" />
+                <Setter Property="Margin" Value="0" />
+            </Style>
+
+            <!-- Shared page header content helper: use with ModernPageHeaderStyle grid -->
+            <Style x:Key="ModernHeaderTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="17" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="Foreground" Value="{StaticResource MetroPrimaryTextBrush}" />
+            </Style>
+
+            <Style x:Key="ModernChipStyle" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource ModernAccentSoftBrush}" />
+                <Setter Property="CornerRadius" Value="12" />
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="Margin" Value="0,0,8,0" />
+            </Style>
+
+            <Style x:Key="ModernDividerStyle" TargetType="Border">
+                <Setter Property="Height" Value="1" />
+                <Setter Property="Background" Value="{StaticResource ModernHairlineBrush}" />
+                <Setter Property="Margin" Value="0,8" />
+            </Style>
+
+            <Style x:Key="ModernMenuChevronStyle" TargetType="FontIcon">
+                <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+                <Setter Property="Glyph" Value="&#xE76C;" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource MetroSecondaryTextBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

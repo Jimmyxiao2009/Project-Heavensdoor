@@ -1,15 +1,11 @@
-# Third-party reference material — not ours to redistribute, keep local-only
+# --- local reference / reverse trees (not product) ---
 _extracted/
-_ref/Lagrange.Core/
-_ref/LagrangeV2/
-*.AppxBundle
-
-# Large reverse / dump trees (local only)
+_ref/
 _reverse/
-out_server/
-.reasonix/
+*.AppxBundle
+@AutomationLog.txt
 
-# Build artifacts
+# --- build outputs ---
 [Bb]in/
 [Oo]bj/
 AppPackages/
@@ -19,53 +15,50 @@ AppPackages/
 *.pri
 *.ilk
 *.pdb
+*.user
 
-# Publish / installer outputs (upload via GitHub Releases, not git)
+# --- publish / installer scratch ---
 publish/
+server/publish/
+server/out/
 .wix/
-installer/**/_build/
-installer/**/_try/
+**/installer/**/_build/
+**/installer/**/_try/
+server/installer/**/_build/
+server/installer/**/_try/
 
-# Shell build artifacts (UWP)
+# --- shell / server nested ---
 shell/**/[Bb]in/
 shell/**/[Oo]bj/
 shell/**/AppPackages/
-shell/**/*.user
-
-# Server build artifacts
 server/**/[Bb]in/
 server/**/[Oo]bj/
-server/**/run_live*.log
+
+# --- runtime logs / prefs next to RealServer ---
+server/**/*.log
+server/**/conv_prefs_*.json
 server/**/qzone_*.txt
 server/**/qzone_*.json
-server/**/conv_prefs_*.json
-server/**/crash_*.log
-server/**/host_*.log
-server/**/manual_*.log
-server/**/stdout.log
-server/**/stderr.log
+server/**/keystore.json
 
-# Tools runtime / logs
+# --- tools ---
 tools/**/bin/
 tools/**/obj/
-tools/runtime_logs/
 tools/**/*.log
 
-# VS / MSBuild
+# --- VS ---
 .vs/
-*.user
 *.suo
 *.userosscache
 *.sln.docstates
 
-# Signing / secrets — never commit real certs or tokens
+# --- secrets ---
 *.pfx
 *.cer
 signer.config.json
 keystore.json
 *.local.md
-tools/LocalSignProxy/appsettings.json
 ACCOUNT-NOTES.local.md
 
-# Node/misc
-*.log
+# --- local tooling state (not project code) ---
+.reasonix/

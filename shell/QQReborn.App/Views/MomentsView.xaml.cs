@@ -19,22 +19,15 @@ namespace QQReborn.App.Views
     public sealed partial class MomentsView : UserControl
     {
         private readonly MomentsViewModel _vm;
-        private readonly RemoteChatService _remote;
+        private readonly IGatewayService _remote;
         private readonly List<string> _pendingImages = new List<string>();
         private string _pendingVideo;
 
         public MomentsView()
         {
             InitializeComponent();
-            IMomentsService moments;
-            if (App.ChatService is RemoteChatService remote)
-            {
-                _remote = remote;
-                moments = new RemoteMomentsService(remote);
-            }
-            else
-                moments = new MockMomentsService();
-            _vm = new MomentsViewModel(moments);
+            _remote = AppServices.Gateway;
+            _vm = new MomentsViewModel(AppServices.Moments);
             DataContext = _vm;
             Loaded += MomentsView_Loaded;
             Unloaded += MomentsView_Unloaded;

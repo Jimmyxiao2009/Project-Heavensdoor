@@ -2,13 +2,14 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="QQ Reborn 管家"
-        Width="940" Height="720"
-        MinWidth="740" MinHeight="540"
+        Width="960" Height="760"
+        MinWidth="760" MinHeight="560"
         Background="{StaticResource Bg}"
         WindowStartupLocation="CenterScreen"
         Closing="Window_Closing">
   <Grid Margin="16">
     <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
@@ -24,13 +25,41 @@
       <StackPanel>
         <TextBlock Text="QQ REBORN GATEWAY" Foreground="{StaticResource Muted}" FontSize="12" FontWeight="SemiBold"/>
         <TextBlock Text="QQ Reborn 管家" Foreground="{StaticResource Text}" FontSize="28" FontWeight="Light" Margin="0,2,0,0"/>
+        <TextBlock Text="一键安装 NapCat · 配置 OneBot · 启动网关" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,4,0,0"/>
       </StackPanel>
       <TextBlock Grid.Column="1" x:Name="RepoRootText" Foreground="{StaticResource Muted}" FontSize="11"
                  VerticalAlignment="Bottom" TextAlignment="Right" MaxWidth="360" TextTrimming="CharacterEllipsis"/>
     </Grid>
 
+    <!-- One-click hero -->
+    <Border Grid.Row="1" Background="{StaticResource Panel}" CornerRadius="8" Padding="16" Margin="0,0,0,12"
+            BorderBrush="#3312B7F5" BorderThickness="1">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="傻瓜式一键环境" Foreground="{StaticResource Text}" FontSize="18" FontWeight="SemiBold"/>
+          <TextBlock x:Name="OneClickHint" Margin="0,6,16,0" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap"
+                     Text="自动：检测 QQNT → 下载安装 NapCat → 写入 HTTP 3000 / WS 3001 → 启动 NapCat → 启动网关 :8765。未装 QQ 会打开下载页。"/>
+          <TextBlock x:Name="OneClickStatus" Margin="0,8,16,0" Foreground="{StaticResource Accent}" FontSize="12"
+                     Text="就绪"/>
+        </StackPanel>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="200">
+          <Button x:Name="OneClickBtn" Content="一键安装并启动" Click="OneClick_Click"
+                  Background="{StaticResource Accent}" Foreground="White" BorderThickness="0"
+                  Padding="18,14" FontSize="15" FontWeight="SemiBold" Cursor="Hand"/>
+          <Button x:Name="InstallOnlyBtn" Content="仅安装/更新 NapCat" Click="InstallOnly_Click"
+                  Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
+                  Padding="12,8" Margin="0,8,0,0" FontSize="12" Cursor="Hand"
+                  ToolTip="只下载/刷新 NapCat 并写入 OneBot 配置，不启动网关"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
     <!-- Status cards + actions -->
-    <Grid Grid.Row="1" Margin="0,0,0,12">
+    <Grid Grid.Row="2" Margin="0,0,0,12">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>
         <ColumnDefinition Width="*"/>
@@ -92,8 +121,9 @@
           <TextBox x:Name="AccessPasswordBox" Padding="8,6"/>
         </DockPanel>
         <Button x:Name="StartAllBtn" Content="▶  启动网关" Click="StartAll_Click"
-                Background="{StaticResource Accent}" Foreground="White" BorderThickness="0"
-                Padding="12,10" Margin="0,0,0,6" FontSize="14" Cursor="Hand"/>
+                Background="#FF2A2A2A" Foreground="{StaticResource Text}" BorderThickness="0"
+                Padding="12,10" Margin="0,0,0,6" FontSize="14" Cursor="Hand"
+                ToolTip="若 NapCat 未在线会尝试自动下载并启动"/>
         <Button x:Name="StopAllBtn" Content="■  停止网关" Click="StopAll_Click"
                 Background="#FF333333" Foreground="White" BorderThickness="0"
                 Padding="12,10" Margin="0,0,0,6" FontSize="14" Cursor="Hand"/>
@@ -118,7 +148,7 @@
     </Grid>
 
     <!-- Log -->
-    <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="6" Padding="8">
+    <Border Grid.Row="3" Background="{StaticResource Panel}" CornerRadius="6" Padding="8">
       <DockPanel>
         <Grid DockPanel.Dock="Top" Margin="4,2,4,6">
           <TextBlock Text="日志" Foreground="{StaticResource Muted}" FontSize="12" VerticalAlignment="Center"/>
@@ -133,7 +163,7 @@
     </Border>
 
     <!-- Footer tips -->
-    <TextBlock Grid.Row="3" Margin="0,10,0,0" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"
-               Text="先选登录账号再启动 NapCat。默认大号 1913695019。首次会同步到 %LocalAppData%\QQReborn\NapCat 并写入 OneBot 3000/3001。出门只映射 8765。"/>
+    <TextBlock Grid.Row="4" Margin="0,10,0,0" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap"
+               Text="推荐路径：点「一键安装并启动」→ 在弹出的 QQ 完成登录 → 手机 Shell 填地址/端口/访问密码。出门只映射 8765，勿暴露 3000/3001。"/>
   </Grid>
 </Window>

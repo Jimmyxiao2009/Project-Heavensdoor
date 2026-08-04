@@ -13,295 +13,286 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- WP-style hero title -->
-        <Grid Grid.Row="0" Margin="19,10,12,4">
+        <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="我" Style="{StaticResource MetroPageTitleStyle}" />
-                <TextBlock Text="设置" Style="{StaticResource MetroHeroTitleStyle}" Margin="0,-2,0,0" />
-            </StackPanel>
-            <Button Grid.Column="1" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
-                    BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="22" Content="&#x2190;" />
+            <Button Grid.Column="0" x:Name="BackButton" Click="BackButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}">
+                <FontIcon Glyph="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                          Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            </Button>
+            <TextBlock Grid.Column="1" Text="设置" Style="{StaticResource ModernHeaderTitleStyle}" />
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
-            <StackPanel Margin="24,8,24,24">
+            <StackPanel Margin="14,10,14,28">
 
-                <TextBlock Text="通用" Style="{StaticResource MetroSectionLabelStyle}" Margin="0,4,0,8" />
-
-                <!-- 深色模式 (read-only on) -->
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="深色模式" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="METRO 黑 · 暂不可关闭" FontSize="12"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                <TextBlock Text="通用" Style="{StaticResource MetroSectionLabelStyle}" Margin="8,4,0,8" />
+                <Border Style="{StaticResource ModernSettingsCardStyle}">
+                    <StackPanel>
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="深色模式" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="深色壳 · 暂不可关闭" FontSize="12"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding DarkMode}" IsEnabled="False"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="消息通知" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="接收新消息提醒" FontSize="12"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding Notifications, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="输入时回车发送" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="关闭后回车换行，按发送键发送" FontSize="12"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding EnterToSend, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,8,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="界面大小" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="调整字号与列表密度" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Text="{Binding FontSizeText}" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{StaticResource MetroAccentBrush}" VerticalAlignment="Center" />
+                        </Grid>
+                        <Slider Minimum="0" Maximum="2" StepFrequency="1"
+                                TickFrequency="1" TickPlacement="Outside"
+                                Value="{Binding FontSizeLevel, Mode=TwoWay}"
+                                Foreground="{StaticResource MetroAccentBrush}" Margin="0,0,0,2" />
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="小" FontSize="11" HorizontalAlignment="Left"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            <TextBlock Grid.Column="1" Text="标准" FontSize="11" HorizontalAlignment="Center"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            <TextBlock Grid.Column="2" Text="大" FontSize="11" HorizontalAlignment="Right"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                        </Grid>
                     </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding DarkMode}" IsEnabled="False"
-                                  VerticalAlignment="Center" />
-                </Grid>
+                </Border>
 
-                <!-- 消息通知 -->
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="消息通知" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="接收新消息提醒" FontSize="12"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                <TextBlock Text="实用功能" Style="{StaticResource MetroSectionLabelStyle}" Margin="8,8,0,8" />
+                <Border Style="{StaticResource ModernSettingsCardStyle}">
+                    <StackPanel>
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="防撤回" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="对方撤回后本地仍可见原文" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding AntiRecall, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="显示撤回提示" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="有人撤回时在会话里插一条提示" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding ShowRevokeNotice, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="双击戳一戳" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="双击对方气泡发送戳一戳" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding DoubleTapNudge, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="发送前确认" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="点发送时再确认一次，防误触" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding ConfirmBeforeSend, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="复制带发送者" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="多选复制时每行前加昵称" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding CopyWithSender, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="来消息震动" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="新消息时手机震动（需开启消息通知）" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleSwitch Grid.Column="1" IsOn="{Binding VibrateOnMessage, Mode=TwoWay}"
+                                          VerticalAlignment="Center" />
+                        </Grid>
                     </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding Notifications, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                </Grid>
-
-                <!-- 输入时回车发送 -->
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="输入时回车发送" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="关闭后回车换行，按发送键发送" FontSize="12"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding EnterToSend, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                </Grid>
-
-                <!-- 界面大小：缩放整页（文字 + 头像 + 间距），立即生效 -->
-                <Grid Margin="0,12,0,4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="界面大小" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="调整字号与列表密度（不缩放整页，避免卡死/留白）" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Text="{Binding FontSizeText}" FontSize="14"
-                               Foreground="{StaticResource MetroAccentBrush}" VerticalAlignment="Center" />
-                </Grid>
-                <Slider Minimum="0" Maximum="2" StepFrequency="1"
-                        TickFrequency="1" TickPlacement="Outside"
-                        Value="{Binding FontSizeLevel, Mode=TwoWay}"
-                        Foreground="{StaticResource MetroAccentBrush}" Margin="0,4,0,4" />
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="小" FontSize="12" HorizontalAlignment="Left"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                    <TextBlock Grid.Column="1" Text="标准" FontSize="12" HorizontalAlignment="Center"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                    <TextBlock Grid.Column="2" Text="大" FontSize="12" HorizontalAlignment="Right"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                </Grid>
-
-                <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,12,0,12" />
-
-                <TextBlock Text="实用功能" Style="{StaticResource MetroSectionLabelStyle}" Margin="0,0,0,8" />
-
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="防撤回" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="对方撤回后本地仍可见原文" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding AntiRecall, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                </Grid>
-
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="显示撤回提示" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="有人撤回时在会话里插一条提示" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding ShowRevokeNotice, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                </Grid>
-
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="双击戳一戳" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="双击对方气泡发送戳一戳" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding DoubleTapNudge, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                </Grid>
-
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="发送前确认" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="点发送时再确认一次，防误触" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding ConfirmBeforeSend, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                </Grid>
-
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="复制带发送者" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="多选复制时每行前加昵称" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding CopyWithSender, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                </Grid>
-
-                <Grid Margin="0,8,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="来消息震动" FontSize="20" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="新消息时手机震动（需开启消息通知）" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
-                    </StackPanel>
-                    <ToggleSwitch Grid.Column="1" IsOn="{Binding VibrateOnMessage, Mode=TwoWay}"
-                                  VerticalAlignment="Center" />
-                </Grid>
-
+                </Border>
                 <TextBlock Text="聊天里：长按消息 → 多选 / 复制 / 转发 / 截图选中"
-                           FontSize="12" TextWrapping="Wrap" Margin="0,4,0,4"
+                           FontSize="12" TextWrapping="Wrap" Margin="8,0,8,4"
                            Foreground="{StaticResource MetroSecondaryTextBrush}" />
 
-                <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,12,0,12" />
-
-                <TextBlock Text="网关连接" Style="{StaticResource MetroSectionLabelStyle}" Margin="0,0,0,8" />
-
-                <StackPanel Margin="0,4,0,8">
-                    <TextBlock Text="服务器地址" FontSize="20" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                    <TextBlock Text="本机 localhost；同 WiFi 填电脑局域网 IP；出门填 OpenFrp/Frp 访问主机"
-                               FontSize="12" TextWrapping="Wrap"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,6" />
-                    <TextBox Text="{Binding ServerHost, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="localhost" InputScope="Url" />
-                </StackPanel>
-                <StackPanel Margin="0,4,0,8">
-                    <TextBlock Text="服务器端口" FontSize="20" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                    <TextBlock Text="默认 8765；若 Frp 远程端口不是 8765，改成面板上的远程端口"
-                               FontSize="12" TextWrapping="Wrap"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,6" />
-                    <TextBox Text="{Binding ServerPortText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             PlaceholderText="8765" InputScope="Number" />
-                </StackPanel>
-                <StackPanel Margin="0,4,0,8">
-                    <TextBlock Text="网关访问密码" FontSize="20" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                    <TextBlock Text="这是电脑管家的访问口令，不是 QQ 密码；与管家设置一致后才能连接"
-                               FontSize="12" TextWrapping="Wrap"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,6" />
-                    <PasswordBox x:Name="AccessPasswordBox" PasswordChanged="AccessPasswordBox_PasswordChanged"
-                                 PlaceholderText="填写管家显示的访问密码" />
-                </StackPanel>
-
-                <Button Content="连接网关" Click="LoginButton_Click"
-                        Background="{StaticResource MetroAccentBrush}" Foreground="White"
-                        Padding="18,8" Margin="0,4,0,8" />
-                <TextBlock Text="号在电脑上的 NapCat/NTQQ 已登录；此处只需地址、端口、密码即可进会话。"
-                           FontSize="12" TextWrapping="Wrap"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,0,0,8" />
-
-                <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,12,0,12" />
-
-                <TextBlock Text="存储" FontSize="14" CharacterSpacing="40" Margin="0,0,0,8"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-
-                <!-- 清除缓存 -->
-                <Grid Margin="0,4,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="清除缓存" FontSize="20" FontWeight="Light"
+                <TextBlock Text="网关连接" Style="{StaticResource MetroSectionLabelStyle}" Margin="8,8,0,8" />
+                <Border Style="{StaticResource ModernSettingsCardStyle}" Padding="14,12">
+                    <StackPanel>
+                        <TextBlock Text="服务器地址" FontSize="15" FontWeight="SemiBold"
                                    Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="{Binding CacheStatus}" FontSize="12"
-                                   Foreground="{StaticResource MetroAccentBrush}" Margin="0,3,0,0"
-                                   Visibility="{Binding HasCacheStatus, Converter={StaticResource BoolToVisibility}}" />
-                    </StackPanel>
-                    <Button Grid.Column="1" x:Name="ClearCacheButton" Content="清除" Click="ClearCacheButton_Click"
-                            Background="Transparent" BorderBrush="{StaticResource MetroSubtleBrush}" BorderThickness="1"
-                            Foreground="{StaticResource MetroPrimaryTextBrush}" Padding="18,8" VerticalAlignment="Center" />
-                </Grid>
+                        <TextBlock Text="本机 localhost；同 WiFi 填电脑局域网 IP；出门填 Frp 访问主机"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,8" />
+                        <TextBox Text="{Binding ServerHost, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="localhost" InputScope="Url" />
 
-                <!-- 文件下载目录 -->
-                <Grid Margin="0,4,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                        <TextBlock Text="文件下载目录" FontSize="20" FontWeight="Light"
+                        <TextBlock Text="服务器端口" FontSize="15" FontWeight="SemiBold" Margin="0,14,0,0"
                                    Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock Text="{Binding DownloadFolderPath}" FontSize="12"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0"
-                                   TextTrimming="CharacterEllipsis" MaxLines="1" />
+                        <TextBlock Text="默认 8765；若 Frp 远程端口不是 8765，改成面板上的远程端口"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,8" />
+                        <TextBox Text="{Binding ServerPortText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="8765" InputScope="Number" />
+
+                        <TextBlock Text="网关访问密码" FontSize="15" FontWeight="SemiBold" Margin="0,14,0,0"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="这是电脑管家的访问口令，不是 QQ 密码"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,8" />
+                        <PasswordBox x:Name="AccessPasswordBox" PasswordChanged="AccessPasswordBox_PasswordChanged"
+                                     PlaceholderText="填写管家显示的访问密码" />
+
+                        <Button Content="连接网关" Click="LoginButton_Click"
+                                Style="{StaticResource MetroAccentButtonStyle}" Margin="0,14,0,4" />
+                        <TextBlock Text="号在电脑上的 NapCat/NTQQ 已登录；此处只需地址、端口、密码即可进会话。"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" />
                     </StackPanel>
-                    <Button Grid.Column="1" x:Name="PickDownloadFolderButton" Content="选择" Click="PickDownloadFolder_Click"
-                            Background="Transparent" BorderBrush="{StaticResource MetroSubtleBrush}" BorderThickness="1"
-                            Foreground="{StaticResource MetroPrimaryTextBrush}" Padding="18,8" VerticalAlignment="Center" />
-                </Grid>
+                </Border>
 
-                <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,12,0,12" />
+                <TextBlock Text="存储" Style="{StaticResource MetroSectionLabelStyle}" Margin="8,8,0,8" />
+                <Border Style="{StaticResource ModernSettingsCardStyle}">
+                    <StackPanel>
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
+                                <TextBlock Text="清除缓存" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="{Binding CacheStatus}" FontSize="12"
+                                           Foreground="{StaticResource MetroAccentBrush}" Margin="0,3,0,0"
+                                           Visibility="{Binding HasCacheStatus, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="ClearCacheButton" Content="清除" Click="ClearCacheButton_Click"
+                                    Style="{StaticResource MetroChromeButtonStyle}" Padding="16,8"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+                        <Border Height="1" Background="{StaticResource ModernHairlineBrush}" />
+                        <Grid MinHeight="58" Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
+                                <TextBlock Text="文件下载目录" FontSize="15" FontWeight="SemiBold"
+                                           Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                <TextBlock Text="{Binding DownloadFolderPath}" FontSize="12"
+                                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0"
+                                           TextTrimming="CharacterEllipsis" MaxLines="1" />
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="PickDownloadFolderButton" Content="选择" Click="PickDownloadFolder_Click"
+                                    Style="{StaticResource MetroChromeButtonStyle}" Padding="16,8"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
 
-                <!-- 关于 -->
-                <TextBlock Text="关于" FontSize="14" CharacterSpacing="40" Margin="0,0,0,8"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                <TextBlock Text="关于 QQ Reborn" FontSize="20" FontWeight="Light"
-                           Foreground="{StaticResource MetroPrimaryTextBrush}" Margin="0,4,0,6" />
-                <TextBlock Text="{Binding VersionText}" FontSize="13" TextWrapping="Wrap"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,0,0,4" />
-
+                <TextBlock Text="关于" Style="{StaticResource MetroSectionLabelStyle}" Margin="8,8,0,8" />
+                <Border Style="{StaticResource ModernSettingsCardStyle}" Padding="14,14">
+                    <StackPanel>
+                        <TextBlock Text="关于 QQ Reborn" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="{Binding VersionText}" FontSize="13" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
     </Grid>

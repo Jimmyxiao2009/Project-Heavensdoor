@@ -5,8 +5,8 @@ using QQReborn.App.Services;
 
 namespace QQReborn.App.ViewModels
 {
-    /// <summary>Backs AccountLoginPage. NapCat local gateway: connect with host/port/password
-    /// from Settings; no QR / Lagrange sign required.</summary>
+    /// <summary>Backs AccountLoginPage. Connect with host/port/password from Settings;
+    /// the QQ number lives on the PC (NapCat/NTQQ), no QR or protocol sign.</summary>
     public class AccountLoginViewModel : ObservableObject
     {
         private readonly IProfileService _profile;
@@ -34,18 +34,10 @@ namespace QQReborn.App.ViewModels
         private bool _isBusy;
         public bool IsBusy { get => _isBusy; set => Set(ref _isBusy, value); }
 
-        /// <summary>Unused on NapCat path (kept for wire compatibility).</summary>
-        public string SignServerUrl { get; private set; } = "";
-        public string SignToken { get; private set; } = "";
-        public string SignUin { get; private set; } = "";
-
         public async Task LoadSettingsAsync()
         {
-            var settings = await _profile.GetSettingsAsync();
-            SignServerUrl = "";
-            SignToken = "";
-            // Optional: if user still has a QQ number in settings, send it for mismatch check.
-            SignUin = settings.SignUin ?? "";
+            // Touch profile so settings are loaded into LocalSettings if first run.
+            await _profile.GetSettingsAsync();
 
             StatusText = "准备连接网关";
             StatusDetailText = "将使用设置里的服务器地址、端口和访问密码。"

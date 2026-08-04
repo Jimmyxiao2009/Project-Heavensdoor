@@ -7,6 +7,6 @@
     <RootNamespace>QQReborn.RealServer</RootNamespace>
   </PropertyGroup>
 
-  <!-- NapCat local gateway only — no Lagrange.Core / QQReborn.Signing references. -->
+  <!-- NapCat local gateway only. -->
 
 </Project>

@@ -13,14 +13,10 @@ namespace QQReborn.App
     public sealed partial class App : Application
     {
         /// <summary>
-        /// App-wide chat backend. Flip to false to use the in-app mock instead of a
-        /// WebSocket server (QQReborn.FakeServer for the demo, or QQReborn.RealServer for
-        /// a NapCat local gateway -- both speak the same protocol on :8765).
+        /// App-wide chat backend. Toggle via <see cref="AppServices.UseRemoteBackend"/>.
+        /// Prefer <see cref="AppServices"/> for profile/moments/search accessors.
         /// </summary>
-        private const bool UseRemoteBackend = true;
-
-        public static IChatService ChatService { get; } =
-            UseRemoteBackend ? (IChatService)new RemoteChatService() : new MockChatService();
+        public static IChatService ChatService => AppServices.Chat;
 
         /// <summary>
         /// Id of the conversation currently open on screen, or null if none. Used so the
@@ -101,13 +97,12 @@ namespace QQReborn.App
             // Keep unread badges accumulating while MainPage is not on screen
             // (inside a chat / settings / suspended UI). Server also tracks; list merges both.
             UnreadBadgeStore.EnsureHooked(ChatService);
-            if (UseRemoteBackend)
+            if (AppServices.UseRemoteBackend)
             {
                 ChatService.MessageReceived += OnMessageReceivedForToast;
                 // Connect as soon as the process starts so unread/push work even before
                 // the user lands on MainPage and LoadAsync runs.
-                if (ChatService is RemoteChatService autoRemote)
-                    autoRemote.StartAutoConnect();
+                AppServices.Gateway?.StartAutoConnect();
             }
         }
 
@@ -222,7 +217,8 @@ namespace QQReborn.App
 
         private async void OnResuming(object sender, object e)
         {
-            if (!UseRemoteBackend || !(ChatService is RemoteChatService remoteChat)) return;
+            var remoteChat = AppServices.Gateway;
+            if (remoteChat == null) return;
             if (System.Threading.Interlocked.Exchange(ref _resumeInFlight, 1) != 0) return;
             try
             {
@@ -274,7 +270,7 @@ namespace QQReborn.App
                     // A real launch starts at Home. ConversationPage is retained by the
                     // existing Frame while the app is suspended/minimized, so resume still
                     // stays in the chat without making the last chat the permanent home page.
-                    rootFrame.Navigate(typeof(MainPage), e.Arguments);
+                    rootFrame.Navigate(typeof(ShellPage), e.Arguments);
                 }
 
                 Window.Current.Activate();
@@ -286,11 +282,8 @@ namespace QQReborn.App
         /// false so the platform falls through to its normal behavior (leave the app).</summary>
         private void OnBackRequested(object sender, BackRequestedEventArgs e)
         {
-            if (Window.Current.Content is Frame rootFrame && rootFrame.CanGoBack)
-            {
+            if (AppNav.GoBack())
                 e.Handled = true;
-                rootFrame.GoBack();
-            }
         }
 
         private void OnNavigationFailed(object sender, NavigationFailedEventArgs e)

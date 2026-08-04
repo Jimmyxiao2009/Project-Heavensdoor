@@ -32,7 +32,7 @@ namespace QQReborn.App.Views
                 // Mock data already carries Gender/Age/Location, so there's nothing to
                 // backfill there -- only remote mode needs the extra round-trip (getContacts
                 // doesn't return those fields).
-                if (App.ChatService is RemoteChatService remote)
+                if (AppServices.Gateway is IGatewayService remote)
                 {
                     try
                     {
@@ -95,7 +95,7 @@ namespace QQReborn.App.Views
         private async void RemarkRow_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
         {
             if (_contact == null) return;
-            var remote = App.ChatService as RemoteChatService;
+            var remote = AppServices.Gateway;
             if (remote == null)
             {
                 try { await new MessageDialog("演示模式不支持设置备注。", "提示").ShowAsync(); }
@@ -151,7 +151,7 @@ namespace QQReborn.App.Views
         private async void DeleteFriend_Click(object sender, RoutedEventArgs e)
         {
             if (_contact == null) return;
-            var remote = App.ChatService as RemoteChatService;
+            var remote = AppServices.Gateway;
             if (remote == null)
             {
                 try { await new MessageDialog("演示模式不支持删除好友。", "提示").ShowAsync(); }
@@ -211,7 +211,7 @@ namespace QQReborn.App.Views
         {
             if (_contact == null) return;
 
-            var remote = App.ChatService as RemoteChatService;
+            var remote = AppServices.Gateway;
             if (remote == null)
             {
                 try { await new MessageDialog("演示模式不支持点赞。", "提示").ShowAsync(); }

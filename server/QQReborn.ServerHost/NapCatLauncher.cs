@@ -29,16 +29,16 @@ public sealed class NapCatLauncher
     {
         foreach (var c in EnumerateShellCandidates())
         {
-            if (IsShellDir(c)) return c;
+            if (IsShellDirectory(c)) return c;
         }
         return null;
     }
 
     public string? FindShellRuntime()
     {
-        if (IsShellDir(RuntimeRoot)) return RuntimeRoot;
+        if (IsShellDirectory(RuntimeRoot)) return RuntimeRoot;
         var nested = Path.Combine(RuntimeRoot, "shell");
-        if (IsShellDir(nested)) return nested;
+        if (IsShellDirectory(nested)) return nested;
         return null;
     }
 
@@ -49,19 +49,28 @@ public sealed class NapCatLauncher
     public string EnsureRuntimeShell(string? preferredSource = null)
     {
         var source = preferredSource;
-        if (string.IsNullOrWhiteSpace(source) || !IsShellDir(source))
+        if (string.IsNullOrWhiteSpace(source) || !IsShellDirectory(source))
             source = FindShellSource();
         if (string.IsNullOrWhiteSpace(source))
             throw new FileNotFoundException(
-                "未找到 NapCat Shell。请把 NapCat.Shell 放到安装目录下的 NapCat\\，或设置环境变量 NAPCAT_SHELL。");
+                "未找到 NapCat Shell。请使用「一键安装并启动」自动下载，或把 NapCat.Shell 放到安装目录 NapCat\\，或设置 NAPCAT_SHELL。");
+
+        return StageToRuntime(source);
+    }
+
+    /// <summary>Stage a known shell source into the writable runtime root and write OneBot config.</summary>
+    public string StageToRuntime(string source)
+    {
+        if (!IsShellDirectory(source))
+            throw new DirectoryNotFoundException("无效的 NapCat Shell 目录: " + source);
 
         var dest = RuntimeRoot;
         var marker = Path.Combine(dest, "NapCatWinBootMain.exe");
         var needCopy = !File.Exists(marker);
 
-        if (!needCopy)
+        // Always re-copy when source is a different folder (e.g. fresh download).
+        if (!needCopy && !PathsEqual(source, dest))
         {
-            // Refresh if bundled source is newer than staged copy.
             try
             {
                 var srcBoot = new FileInfo(Path.Combine(source, "NapCatWinBootMain.exe"));
@@ -85,6 +94,17 @@ public sealed class NapCatLauncher
 
         EnsureOneBotConfig(dest);
         return dest;
+    }
+
+    private static bool PathsEqual(string a, string b)
+    {
+        try
+        {
+            return string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'),
+                Path.GetFullPath(b).TrimEnd('\\', '/'),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
     }
 
     public void EnsureOneBotConfig(string shellDir)
@@ -206,19 +226,27 @@ public sealed class NapCatLauncher
         yield return Path.Combine(baseDir, "NapCat");
         yield return Path.Combine(baseDir, "NapCat", "shell");
 
-        // 3) Already staged runtime
+        // 3) Already staged runtime / auto-download staging
         yield return RuntimeRoot;
         yield return Path.Combine(RuntimeRoot, "shell");
+        yield return NapCatInstaller.InstallStagingDir;
 
-        // 4) Common dev / legacy locations
+        // 4) Repo third_party (dev)
+        var dir = new DirectoryInfo(baseDir);
+        while (dir != null)
+        {
+            yield return Path.Combine(dir.FullName, "third_party", "NapCat", "shell");
+            yield return Path.Combine(dir.FullName, "third_party", "NapCat");
+            if (File.Exists(Path.Combine(dir.FullName, "QQReborn.sln"))) break;
+            dir = dir.Parent;
+        }
+
+        // 5) Common manual install locations
         yield return @"D:\NapCat.Shell";
         yield return @"C:\NapCat.Shell";
-        yield return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Temp", "grok-goal-7c849b0de48f", "implementer", "NapCat", "shell");
     }
 
-    private static bool IsShellDir(string? dir)
+    public static bool IsShellDirectory(string? dir)
     {
         if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return false;
         return File.Exists(Path.Combine(dir, "NapCatWinBootMain.exe"))
@@ -229,15 +257,34 @@ public sealed class NapCatLauncher
     private static string? FindTemplateDir()
     {
         var baseDir = AppContext.BaseDirectory;
-        var bundled = Path.Combine(baseDir, "NapCat", "config-templates");
-        if (Directory.Exists(bundled)) return bundled;
+        foreach (var candidate in new[]
+                 {
+                     Path.Combine(baseDir, "NapCat", "config-templates"),
+                     Path.Combine(baseDir, "napcat-config"),
+                     Path.Combine(baseDir, "config-templates"),
+                 })
+        {
+            if (Directory.Exists(candidate)
+                && File.Exists(Path.Combine(candidate, "onebot11.json")))
+                return candidate;
+        }
 
-        // Dev: repo installer templates
+        // Dev: repo installer templates / project-local templates
         var dir = new DirectoryInfo(baseDir);
         while (dir != null)
         {
-            var t = Path.Combine(dir.FullName, "installer", "ServerHost", "napcat-config");
-            if (Directory.Exists(t)) return t;
+            foreach (var rel in new[]
+                     {
+                         Path.Combine("napcat-config"),
+                         Path.Combine("installer", "ServerHost", "napcat-config"),
+                         Path.Combine("server", "installer", "ServerHost", "napcat-config"),
+                         Path.Combine("server", "QQReborn.ServerHost", "napcat-config"),
+                     })
+            {
+                var t = Path.Combine(dir.FullName, rel);
+                if (Directory.Exists(t) && File.Exists(Path.Combine(t, "onebot11.json")))
+                    return t;
+            }
             dir = dir.Parent;
         }
         return null;

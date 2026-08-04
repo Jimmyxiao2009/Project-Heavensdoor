@@ -38,7 +38,7 @@ namespace QQReborn.App.Views
         private async System.Threading.Tasks.Task LoadNotificationsAsync()
         {
             Items.Clear();
-            if (App.ChatService is RemoteChatService remote)
+            if (AppServices.Gateway is IGatewayService remote)
             {
                 try
                 {
@@ -79,7 +79,7 @@ namespace QQReborn.App.Views
 
         private async void Accept_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as FrameworkElement)?.DataContext is GroupNotificationItem item && App.ChatService is RemoteChatService remote)
+            if ((sender as FrameworkElement)?.DataContext is GroupNotificationItem item && AppServices.Gateway is IGatewayService remote)
             {
                 try
                 {
@@ -93,7 +93,7 @@ namespace QQReborn.App.Views
 
         private async void Reject_Click(object sender, RoutedEventArgs e)
         {
-            if ((sender as FrameworkElement)?.DataContext is GroupNotificationItem item && App.ChatService is RemoteChatService remote)
+            if ((sender as FrameworkElement)?.DataContext is GroupNotificationItem item && AppServices.Gateway is IGatewayService remote)
             {
                 try
                 {

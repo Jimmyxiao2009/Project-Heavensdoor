@@ -13,7 +13,9 @@ public interface ISessionBackend
 
     event Action<string>? Broadcast;
 
-    Task<(JsonObject? data, string? error)> ConfigureAccountAsync(string signUrl, string? signToken, string signUinRaw);
+    /// <summary>Bind this WS session to the NapCat-logged-in account.
+    /// Optional <paramref name="expectedUin"/> must match NapCat when provided.</summary>
+    Task<(JsonObject? data, string? error)> ConfigureAccountAsync(string? expectedUin = null);
 
     JsonObject GetSelf();
     JsonArray GetConversations();

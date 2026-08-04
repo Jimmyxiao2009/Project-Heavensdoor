@@ -1,0 +1,77 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using QQReborn.App.Models;
+
+namespace QQReborn.App.Services
+{
+    public class TypingState
+    {
+        public string ConversationId { get; set; }
+        public bool IsTyping { get; set; }
+    }
+
+    /// <summary>
+    /// Core chat surface for list/conversation UI (mock-safe).
+    /// Production: <see cref="RemoteChatService"/> also implements <see cref="IGatewayService"/>
+    /// for group admin / media / profile extensions — use <see cref="AppServices.Gateway"/>.
+    /// Offline: <see cref="MockChatService"/> (IChatService only).
+    /// </summary>
+    public interface IChatService
+    {
+        Task<SelfProfile> GetSelfAsync();
+
+        Task<IReadOnlyList<ChatConversation>> GetConversationsAsync();
+
+        Task<IReadOnlyList<Contact>> GetContactsAsync();
+
+        /// <param name="localOnly">When true, do not trigger cloud history backfill (used by
+        /// global search so it only scans the session cache and doesn't stampede the server).</param>
+        Task<IReadOnlyList<ChatMessage>> GetMessagesAsync(string conversationId, bool localOnly = false);
+
+        Task<ChatMessage> SendTextAsync(string conversationId, string text, string mentionsJson = null);
+
+        Task<ChatMessage> SendImageAsync(string conversationId, string imagePath);
+
+        /// <summary>
+        /// Send one protocol message that may combine caption text + one or more images
+        /// (图文混排 / 多图). Empty text is allowed when at least one image is present.
+        /// </summary>
+        Task<ChatMessage> SendMixedAsync(string conversationId, string text, IReadOnlyList<string> imagePaths, string replyToMessageId = null, string mentionsJson = null);
+
+        Task<ChatMessage> SendStickerAsync(string conversationId, string stickerPath);
+
+        Task<ChatMessage> SendVoiceAsync(string conversationId, string audioPath, int seconds);
+
+        Task<ChatMessage> SendLocationAsync(string conversationId, string placeName, string address, string thumb,
+            double latitude = 0, double longitude = 0);
+
+        Task<IReadOnlyList<string>> GetFavoriteStickersAsync();
+
+        Task<IReadOnlyList<GroupMember>> GetGroupMembersAsync(string conversationId);
+
+        Task<IReadOnlyList<FriendRequest>> GetFriendRequestsAsync();
+
+        Task<ChatMessage> ForwardMessageAsync(string targetConversationId, string messageId);
+
+        Task<ChatMessage> ForwardMessagesAsync(string targetConversationId, IReadOnlyList<string> messageIds);
+
+        Task AcceptFriendRequestAsync(FriendRequest request);
+
+        /// <summary>Reject a pending friend request (NapCat set_friend_add_request approve=false).</summary>
+        Task RejectFriendRequestAsync(FriendRequest request);
+
+        /// <summary>
+        /// Set pin (置顶) and/or mute (消息免打扰) for a conversation. Pass null for a
+        /// flag to leave it unchanged. Completes after the gateway accepts the update.
+        /// Preferences are stored by RealServer (per NapCat account) and pushed on change.
+        /// </summary>
+        Task SetConversationFlagsAsync(string conversationId, bool? isPinned, bool? isMuted);
+
+        /// <summary>Raised when a new message arrives from the backend.</summary>
+        event EventHandler<ChatMessage> MessageReceived;
+
+        /// <summary>Raised when the peer's typing state changes.</summary>
+        event EventHandler<TypingState> TypingChanged;
+    }
+}

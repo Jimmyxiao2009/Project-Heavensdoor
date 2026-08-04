@@ -13,45 +13,51 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- WP-style hero title -->
-        <Grid Grid.Row="0" Margin="19,10,12,4">
+        <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="账号" Style="{StaticResource MetroPageTitleStyle}" />
-                <TextBlock Text="连接网关" Style="{StaticResource MetroHeroTitleStyle}" Margin="0,-2,0,0" />
-            </StackPanel>
-            <Button Grid.Column="1" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
-                    BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="22" Content="&#x2190;" />
+            <Button Grid.Column="0" x:Name="BackButton" Click="BackButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}">
+                <FontIcon Glyph="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                          Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            </Button>
+            <TextBlock Grid.Column="1" Text="连接网关" Style="{StaticResource ModernHeaderTitleStyle}" />
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
-            <StackPanel Margin="24,8,24,24" HorizontalAlignment="Center">
+            <StackPanel Margin="24,28,24,32" HorizontalAlignment="Center" MaxWidth="360">
 
-                <TextBlock Text="{Binding StatusText}" FontSize="24" FontWeight="Light"
+                <Border Width="64" Height="64" CornerRadius="18" HorizontalAlignment="Center"
+                        Background="{StaticResource MetroAccentBrush}" Margin="0,0,0,18">
+                    <TextBlock Text="Q" FontSize="30" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+
+                <TextBlock Text="{Binding StatusText}" FontSize="20" FontWeight="SemiBold"
                            Foreground="{StaticResource MetroPrimaryTextBrush}"
-                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,20,0,6" />
-                <TextBlock Text="{Binding StatusDetailText}" FontSize="14" TextWrapping="Wrap"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" MaxWidth="320"
+                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,8" />
+                <TextBlock Text="{Binding StatusDetailText}" FontSize="13" TextWrapping="Wrap"
+                           Foreground="{StaticResource MetroSecondaryTextBrush}"
                            HorizontalAlignment="Center" TextAlignment="Center" Margin="0,0,0,20" />
 
-                <ProgressRing IsActive="{Binding IsBusy}" Width="42" Height="42" Margin="0,0,0,12"
+                <ProgressRing IsActive="{Binding IsBusy}" Width="40" Height="40" Margin="0,0,0,16"
+                              Foreground="{StaticResource MetroAccentBrush}"
                               Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
 
                 <Border Width="240" Height="240" Background="{StaticResource MetroPanelBrush}"
+                        CornerRadius="16" BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="1"
                         Visibility="{Binding HasQrImage, Converter={StaticResource BoolToVisibility}}"
-                        Margin="0,8,0,24">
-                    <Image Source="{Binding QrImage}" Stretch="Uniform" Margin="12" />
+                        Margin="0,4,0,24" HorizontalAlignment="Center">
+                    <Image Source="{Binding QrImage}" Stretch="Uniform" Margin="14" />
                 </Border>
 
                 <Button Content="开始连接" Click="StartLoginButton_Click"
                         Visibility="{Binding ShowStartButton, Converter={StaticResource BoolToVisibility}}"
-                        Background="{StaticResource MetroAccentBrush}" Foreground="White"
-                        Padding="32,12" FontSize="18" HorizontalAlignment="Center" Margin="0,8,0,0" />
-
+                        Style="{StaticResource MetroAccentButtonStyle}"
+                        MaxWidth="280" HorizontalAlignment="Center" Padding="32,12" FontSize="16" />
             </StackPanel>
         </ScrollViewer>
     </Grid>

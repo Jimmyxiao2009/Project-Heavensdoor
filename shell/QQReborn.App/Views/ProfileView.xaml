@@ -7,122 +7,141 @@
     mc:Ignorable="d">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Disabled">
-        <StackPanel Margin="0,4,0,24">
+        <StackPanel Margin="12,10,12,28">
 
-            <!-- Profile hero: square avatar + light type (WP People card) -->
-            <Border Style="{StaticResource MetroSectionSurfaceStyle}" Margin="0,4,19,4" Padding="12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border Grid.Column="0" Width="4" Background="{StaticResource MetroAccentBrush}"
-                        VerticalAlignment="Stretch" Margin="0,0,12,0" />
-                <Rectangle x:Name="AvatarRect" Grid.Column="1" Width="88" Height="88"
-                           VerticalAlignment="Top" Tapped="AvatarRect_Tapped">
-                    <Rectangle.Fill>
-                        <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
-                    </Rectangle.Fill>
-                </Rectangle>
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="16,0,0,0">
-                    <TextBlock Text="{Binding Nickname}" FontSize="28" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis"
-                               Tapped="Nickname_Tapped" />
+            <Border Style="{StaticResource ModernCardStyle}" Padding="16,16" Margin="0,0,0,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Ellipse x:Name="AvatarRect" Grid.Column="0" Width="72" Height="72"
+                             VerticalAlignment="Top" Tapped="AvatarRect_Tapped">
+                        <Ellipse.Fill>
+                            <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
+                        </Ellipse.Fill>
+                    </Ellipse>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                        <TextBlock Text="{Binding Nickname}" FontSize="20" FontWeight="SemiBold"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis"
+                                   Tapped="Nickname_Tapped" />
 
-                    <StackPanel x:Name="StatusRow" Orientation="Horizontal" Background="Transparent"
-                                Margin="0,6,0,0" HorizontalAlignment="Left" Tapped="StatusRow_Tapped">
-                        <Ellipse x:Name="StatusDot" Width="10" Height="10" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding Self.StatusText}" FontSize="13" FontWeight="SemiLight"
+                        <StackPanel x:Name="StatusRow" Orientation="Horizontal" Background="Transparent"
+                                    Margin="0,8,0,0" HorizontalAlignment="Left" Tapped="StatusRow_Tapped">
+                            <Ellipse x:Name="StatusDot" Width="9" Height="9" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Self.StatusText}" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}"
+                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+                            <FontIcon Glyph="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                      Foreground="{StaticResource MetroSecondaryTextBrush}"
+                                      VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding UinText}" FontSize="12"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding Signature}" FontSize="12"
                                    Foreground="{StaticResource MetroSecondaryTextBrush}"
-                                   VerticalAlignment="Center" Margin="8,0,0,0" />
-                        <TextBlock Text="&#x203A;" FontSize="13"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}"
-                                   VerticalAlignment="Center" Margin="6,0,0,0" />
+                                   TextTrimming="CharacterEllipsis" Margin="0,4,0,0"
+                                   Tapped="Signature_Tapped" />
                     </StackPanel>
-
-                    <TextBlock Text="{Binding UinText}" FontSize="13"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,5,0,0" />
-                    <TextBlock Text="{Binding Signature}" FontSize="13"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}"
-                               TextTrimming="CharacterEllipsis" Margin="0,4,0,0"
-                               Tapped="Signature_Tapped" />
-                </StackPanel>
-            </Grid>
+                </Grid>
             </Border>
 
-            <!-- Level / VIP chips -->
-            <StackPanel Orientation="Horizontal" Margin="0,10,19,18">
-                <Border BorderBrush="{StaticResource MetroAccentBrush}" BorderThickness="1" Padding="10,3" Margin="0,0,10,0">
+            <StackPanel Orientation="Horizontal" Margin="4,0,0,14">
+                <Border Style="{StaticResource ModernChipStyle}">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="等级 " FontSize="12"
+                        <TextBlock Text="等级" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource MetroAccentBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding LevelText}" FontSize="12" FontWeight="SemiLight"
+                        <TextBlock Text="{Binding LevelText}" FontSize="12" FontWeight="SemiBold" Margin="6,0,0,0"
                                    Foreground="{StaticResource MetroAccentBrush}" VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
-                <Border Background="{StaticResource MetroAccentBrush}" Padding="10,3"
+                <Border Background="{StaticResource MetroAccentBrush}" CornerRadius="12" Padding="10,4"
                         Visibility="{Binding IsVip, Converter={StaticResource BoolToVisibility}}">
-                    <TextBlock Text="{Binding VipLabel}" FontSize="12" Foreground="White" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding VipLabel}" FontSize="12" FontWeight="SemiBold"
+                               Foreground="White" VerticalAlignment="Center" />
                 </Border>
             </StackPanel>
 
-            <TextBlock Text="个人" Style="{StaticResource MetroSectionLabelStyle}" Margin="0,4,19,4" />
-
-            <Grid Tag="album" Tapped="MenuRow_Tapped" Style="{StaticResource MetroMenuRowStyle}">
-                <StackPanel Orientation="Horizontal" Margin="0,14,19,14">
-                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE722;" FontSize="20"
-                              VerticalAlignment="Center" Margin="0,0,16,0"
-                              Foreground="{StaticResource MetroAccentBrush}" />
-                    <TextBlock Text="我的相册" FontSize="22" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="个人" Style="{StaticResource MetroSectionLabelStyle}" Margin="8,0,0,8" />
+            <Border Style="{StaticResource ModernSettingsCardStyle}" Padding="6,2">
+                <StackPanel>
+                    <Grid Tag="album" Tapped="MenuRow_Tapped" Style="{StaticResource MetroMenuRowStyle}" Padding="8,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="34" Height="34" CornerRadius="10"
+                                Background="{StaticResource ModernAccentSoftBrush}" Margin="0,0,12,0">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE722;" FontSize="15"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Foreground="{StaticResource MetroAccentBrush}" />
+                        </Border>
+                        <TextBlock Grid.Column="1" Text="我的相册" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
+                        <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                  Foreground="{StaticResource MetroSecondaryTextBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource ModernHairlineBrush}" Margin="54,0,4,0" />
+                    <Grid Tag="files" Tapped="MenuRow_Tapped" Style="{StaticResource MetroMenuRowStyle}" Padding="8,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="34" Height="34" CornerRadius="10"
+                                Background="{StaticResource ModernAccentSoftBrush}" Margin="0,0,12,0">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B7;" FontSize="15"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Foreground="{StaticResource MetroAccentBrush}" />
+                        </Border>
+                        <TextBlock Grid.Column="1" Text="我的文件" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
+                        <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                  Foreground="{StaticResource MetroSecondaryTextBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource ModernHairlineBrush}" Margin="54,0,4,0" />
+                    <Grid Tag="dressup" Tapped="MenuRow_Tapped" Style="{StaticResource MetroMenuRowStyle}" Padding="8,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="34" Height="34" CornerRadius="10"
+                                Background="{StaticResource ModernAccentSoftBrush}" Margin="0,0,12,0">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE790;" FontSize="15"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      Foreground="{StaticResource MetroAccentBrush}" />
+                        </Border>
+                        <TextBlock Grid.Column="1" Text="个性装扮" FontSize="15" FontWeight="SemiBold"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
+                        <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                  Foreground="{StaticResource MetroSecondaryTextBrush}" VerticalAlignment="Center" />
+                    </Grid>
                 </StackPanel>
-            </Grid>
-            <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,0,19,0" />
+            </Border>
 
-            <Grid Tag="files" Tapped="MenuRow_Tapped" Style="{StaticResource MetroMenuRowStyle}">
-                <StackPanel Orientation="Horizontal" Margin="0,14,19,14">
-                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B7;" FontSize="20"
-                              VerticalAlignment="Center" Margin="0,0,16,0"
-                              Foreground="{StaticResource MetroAccentBrush}" />
-                    <TextBlock Text="我的文件" FontSize="22" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
-                </StackPanel>
-            </Grid>
-            <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,0,19,0" />
-
-            <Grid Tag="dressup" Tapped="MenuRow_Tapped" Style="{StaticResource MetroMenuRowStyle}">
-                <StackPanel Orientation="Horizontal" Margin="0,14,19,14">
-                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE790;" FontSize="20"
-                              VerticalAlignment="Center" Margin="0,0,16,0"
-                              Foreground="{StaticResource MetroAccentBrush}" />
-                    <TextBlock Text="个性装扮" FontSize="22" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
-                </StackPanel>
-            </Grid>
-
-            <Border Height="1" Background="{StaticResource MetroSubtleBrush}" Margin="0,6,19,6" />
-
-            <TextBlock Text="系统" Style="{StaticResource MetroSectionLabelStyle}" Margin="0,4,19,4" />
-
-            <Grid Tag="settings" Tapped="MenuRow_Tapped" Style="{StaticResource MetroMenuRowStyle}">
-                <Grid Margin="0,14,19,14">
+            <TextBlock Text="系统" Style="{StaticResource MetroSectionLabelStyle}" Margin="8,8,0,8" />
+            <Border Style="{StaticResource ModernSettingsCardStyle}" Padding="6,2">
+                <Grid Tag="settings" Tapped="MenuRow_Tapped" Style="{StaticResource MetroMenuRowStyle}" Padding="8,0">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Orientation="Horizontal">
-                        <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE713;" FontSize="20"
-                                  VerticalAlignment="Center" Margin="0,0,16,0"
-                                  Foreground="{StaticResource MetroAccentBrush}" />
-                        <TextBlock Text="设置" FontSize="22" FontWeight="Light"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="1" Text="&#x203A;" FontSize="22"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" VerticalAlignment="Center" />
+                    <Border Grid.Column="0" Width="34" Height="34" CornerRadius="10"
+                            Background="{StaticResource ModernElevatedBrush}" Margin="0,0,12,0">
+                        <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE713;" FontSize="15"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="设置" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
+                    <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                              Foreground="{StaticResource MetroSecondaryTextBrush}" VerticalAlignment="Center" />
                 </Grid>
-            </Grid>
-
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

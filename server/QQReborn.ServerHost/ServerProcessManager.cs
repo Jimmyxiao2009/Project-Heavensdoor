@@ -14,6 +14,7 @@ public sealed class ServerProcessManager : IDisposable
     private Process? _napCatBoot;
     private readonly object _gate = new();
     private readonly NapCatLauncher _napCat;
+    private readonly NapCatInstaller _installer;
 
     public string RepoRoot { get; }
     public int RealServerPort { get; set; } = 8765;
@@ -47,7 +48,193 @@ public sealed class ServerProcessManager : IDisposable
     {
         RepoRoot = FindRepoRoot();
         _napCat = new NapCatLauncher(Append);
+        _installer = new NapCatInstaller(Append);
         LoadSettings();
+    }
+
+    /// <summary>
+    /// Foolproof pipeline: check NTQQ → download NapCat if needed → write OneBot → start NapCat → start gateway.
+    /// </summary>
+    public async Task<OneClickResult> OneClickSetupAsync(CancellationToken ct = default)
+    {
+        SaveSettings();
+        if (string.IsNullOrWhiteSpace(AccessPassword))
+        {
+            AccessPassword = Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
+            Append("已自动生成访问密码。");
+            SaveSettings();
+        }
+
+        Append("======== 一键安装并启动环境 ========");
+
+        // 1) NTQQ
+        var qq = NapCatLauncher.FindNtqqExe();
+        if (qq == null)
+        {
+            Append("未安装官方 QQNT（QQ.exe）。");
+            Append("正在打开 QQ 下载页，安装完成后请再点一次「一键安装并启动」。");
+            NapCatInstaller.OpenInBrowser(NapCatInstaller.QqntDownloadPage);
+            return OneClickResult.Fail(
+                "未找到 NTQQ。请先安装官方 QQ（QQNT），安装完成后再点「一键安装并启动」。\n" +
+                "下载页: " + NapCatInstaller.QqntDownloadPage,
+                openedBrowser: true);
+        }
+        Append("NTQQ: " + qq);
+
+        // 2) NapCat shell (download if missing)
+        string shellSource;
+        try
+        {
+            var existing = _napCat.FindShellSource() ?? _napCat.FindShellRuntime();
+            if (existing != null)
+            {
+                Append("已找到 NapCat: " + existing);
+                shellSource = existing;
+            }
+            else
+            {
+                shellSource = await _installer.EnsureInstalledAsync(forceUpdate: false, ct: ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            Append("安装 NapCat 失败: " + ex.Message);
+            NapCatInstaller.OpenInBrowser(NapCatInstaller.NapCatReleasesPage);
+            return OneClickResult.Fail(
+                "自动下载 NapCat 失败。已打开发布页，请手动下载 NapCat.Shell.zip 后重试，或把解压目录设为环境变量 NAPCAT_SHELL。\n" +
+                ex.Message,
+                openedBrowser: true);
+        }
+
+        // 3) Stage + OneBot config
+        string runtime;
+        try
+        {
+            runtime = _napCat.StageToRuntime(shellSource);
+            Append("环境配置完成（OneBot HTTP 3000 / WS 3001）。");
+            Append("运行目录: " + runtime);
+        }
+        catch (Exception ex)
+        {
+            return OneClickResult.Fail("写入 NapCat 配置失败: " + ex.Message);
+        }
+
+        // 4) Start NapCat
+        bool napOk;
+        try
+        {
+            if (await CheckNapCatAsync())
+            {
+                Append("NapCat 已在线，跳过启动。");
+                napOk = true;
+            }
+            else
+            {
+                Append("启动 NapCat（账号: " + NapCatUinDisplay + "）…");
+                var p = _napCat.Start(runtime, string.IsNullOrWhiteSpace(NapCatUin) ? null : NapCatUin);
+                lock (_gate) _napCatBoot = p;
+
+                napOk = false;
+                for (var i = 0; i < 90; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    await Task.Delay(1000, ct);
+                    if (await CheckNapCatQuietAsync())
+                    {
+                        napOk = true;
+                        break;
+                    }
+                    if (i is 15 or 30 or 60)
+                        Append($"仍在等待 QQ/NapCat 登录… ({i}s) 请在弹出的 QQ 窗口完成登录。");
+                }
+
+                if (!napOk)
+                    Append("NapCat 进程已启动，但 OneBot 尚未就绪——请在 QQ 窗口登录后点「检测 NapCat」。");
+            }
+        }
+        catch (Exception ex)
+        {
+            return OneClickResult.Fail("启动 NapCat 失败: " + ex.Message);
+        }
+
+        // 5) Start RealServer gateway
+        try
+        {
+            await StartRealServerAsync();
+        }
+        catch (Exception ex)
+        {
+            return OneClickResult.Fail("网关启动失败: " + ex.Message, napCatOnline: napOk);
+        }
+
+        Append("======== 一键流程完成 ========");
+        Append($"手机 Shell 填写: 主机=本机IP  端口={RealServerPort}  密码={AccessPassword}");
+        if (!napOk)
+            Append("提示: 若消息不通，先在 QQ 完成登录，再点「检测 NapCat」。");
+
+        return OneClickResult.Ok(napCatOnline: napOk, accessPassword: AccessPassword, port: RealServerPort);
+    }
+
+    /// <summary>Install/update NapCat only (no gateway start). Always re-downloads latest.</summary>
+    public async Task InstallOrUpdateNapCatAsync(CancellationToken ct = default)
+    {
+        Append("—— 安装 / 更新 NapCat ——");
+        var source = await _installer.EnsureInstalledAsync(forceUpdate: true, ct);
+        Append("同步到运行目录…");
+        var runtime = _napCat.StageToRuntime(source);
+        // Force file overwrite even if timestamps equal (update path)
+        ForceCopyShell(source, runtime);
+        _napCat.EnsureOneBotConfig(runtime);
+        Append("NapCat 已就绪: " + runtime);
+    }
+
+    private static void ForceCopyShell(string source, string dest)
+    {
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(source, file);
+            var top = rel.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)[0];
+            if (top is "cache" or "logs" or ".git") continue;
+            if (rel.EndsWith(".log", StringComparison.OrdinalIgnoreCase)) continue;
+            var target = Path.Combine(dest, rel);
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(file, target, overwrite: true);
+            }
+            catch { /* locked — skip */ }
+        }
+    }
+
+    /// <summary>Probe without spamming failure logs on every tick.</summary>
+    public async Task<bool> CheckNapCatQuietAsync()
+    {
+        var url = NapCatHttp.TrimEnd('/') + "/get_login_info";
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
+            if (!string.IsNullOrWhiteSpace(NapCatToken))
+                http.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", NapCatToken);
+            using var response = await http.PostAsync(url, new StringContent("{}", Encoding.UTF8, "application/json"));
+            if (!response.IsSuccessStatusCode) return false;
+            var body = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("data", out var data)
+                && data.TryGetProperty("user_id", out var uid))
+            {
+                var nick = data.TryGetProperty("nickname", out var nn) ? nn.GetString() : null;
+                Append(string.IsNullOrWhiteSpace(nick)
+                    ? $"NapCat 在线: QQ {uid}"
+                    : $"NapCat 在线: QQ {uid} ({nick})");
+                return true;
+            }
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public async Task StartRealServerAsync()
@@ -121,7 +308,7 @@ public sealed class ServerProcessManager : IDisposable
     public async Task StartAllAsync()
     {
         SaveSettings();
-        if (!await CheckNapCatAsync())
+        if (!await CheckNapCatQuietAsync())
         {
             Append("NapCat 未在线，尝试自动启动…");
             await StartNapCatAsync(waitForOnline: true);
@@ -131,11 +318,12 @@ public sealed class ServerProcessManager : IDisposable
 
     /// <summary>
     /// Stage bundled NapCat (if needed), write OneBot 3000/3001 config, and launch.
+    /// Downloads NapCat automatically when no local shell is found.
     /// </summary>
     public async Task<bool> StartNapCatAsync(bool waitForOnline = true)
     {
         SaveSettings();
-        if (await CheckNapCatAsync())
+        if (await CheckNapCatQuietAsync())
         {
             Append("NapCat 已在线，跳过启动。");
             return true;
@@ -144,7 +332,16 @@ public sealed class ServerProcessManager : IDisposable
         string shell;
         try
         {
-            shell = _napCat.EnsureRuntimeShell();
+            if (_napCat.FindShellSource() == null && _napCat.FindShellRuntime() == null)
+            {
+                Append("本地无 NapCat，自动下载…");
+                var downloaded = await _installer.EnsureInstalledAsync();
+                shell = _napCat.StageToRuntime(downloaded);
+            }
+            else
+            {
+                shell = _napCat.EnsureRuntimeShell();
+            }
         }
         catch (Exception ex)
         {
@@ -169,8 +366,11 @@ public sealed class ServerProcessManager : IDisposable
         for (var i = 0; i < 90; i++)
         {
             await Task.Delay(1000);
-            if (await CheckNapCatAsync())
+            if (await CheckNapCatQuietAsync())
+            {
+                await CheckNapCatAsync(); // one full log line with nickname
                 return true;
+            }
             if (i is 15 or 30 or 60)
                 Append($"仍在等待 NapCat OneBot… ({i}s) 若需扫码请在弹出的 QQ 窗口完成登录。");
         }
@@ -402,7 +602,7 @@ public sealed class ServerProcessManager : IDisposable
             Path.Combine(AppContext.BaseDirectory, "RealServer", "QQReborn.RealServer.exe"),
             Path.Combine(AppContext.BaseDirectory, "QQReborn.RealServer.exe"),
             Path.Combine(RepoRoot, "server", "QQReborn.RealServer", "bin", "Release", "net10.0", "QQReborn.RealServer.exe"),
-            Path.Combine(RepoRoot, "out_server", "QQReborn.RealServer.exe"),
+            Path.Combine(RepoRoot, "server", "out", "QQReborn.RealServer.exe"),
         };
         return candidates.FirstOrDefault(File.Exists);
     }

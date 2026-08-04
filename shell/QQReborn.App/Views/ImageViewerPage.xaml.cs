@@ -135,7 +135,7 @@ namespace QQReborn.App.Views
 
                 // Resolve empty CDN via RealServer getMediaUrl (same as bubble tap).
                 if (string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(item.MessageId)
-                    && App.ChatService is RemoteChatService remote)
+                    && AppServices.Gateway is IGatewayService remote)
                 {
                     try { path = await remote.GetMediaUrlAsync(item.MessageId); }
                     catch { path = null; }

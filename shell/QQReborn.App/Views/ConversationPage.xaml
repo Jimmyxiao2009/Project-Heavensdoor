@@ -18,29 +18,29 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Rectangle Grid.Column="0" Width="40" Height="40" VerticalAlignment="Top">
-                        <Rectangle.Fill>
+                    <Ellipse Grid.Column="0" Width="40" Height="40" VerticalAlignment="Top">
+                        <Ellipse.Fill>
                             <ImageBrush ImageSource="{Binding SenderAvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
-                        </Rectangle.Fill>
-                    </Rectangle>
+                        </Ellipse.Fill>
+                    </Ellipse>
                     <StackPanel Grid.Column="1" Margin="10,0,0,0" HorizontalAlignment="Left"
                                 Holding="Bubble_Holding" RightTapped="Bubble_RightTapped" DoubleTapped="Bubble_DoubleTapped">
                         <TextBlock Text="{Binding SenderName}" FontSize="11"
                                    Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="2,0,0,3" />
                         <!-- 引用 -->
-                        <Border Background="{StaticResource MetroSubtleBrush}" BorderBrush="{StaticResource MetroAccentBrush}"
-                                BorderThickness="3,0,0,0" Padding="8,4" HorizontalAlignment="Left" Margin="0,0,0,3"
+                        <Border Background="{StaticResource ModernElevatedBrush}" BorderBrush="{StaticResource MetroAccentBrush}"
+                                BorderThickness="3,0,0,0" CornerRadius="8" Padding="8,4" HorizontalAlignment="Left" Margin="0,0,0,3"
                                 Visibility="{Binding HasReply, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding ReplyPreview}" FontSize="11" TextWrapping="Wrap" MaxWidth="240"
                                        Foreground="{StaticResource MetroSecondaryTextBrush}" />
                         </Border>
-                        <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left"
+                        <Border Background="{StaticResource MetroBubbleOtherBrush}" CornerRadius="16,16,16,4" Padding="12,9" HorizontalAlignment="Left"
                                 Visibility="{Binding IsTextOnly, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
                                        FontSize="{Binding BubbleText, Source={StaticResource UiScale}}"
                                        Foreground="{StaticResource MetroPrimaryTextBrush}" />
                         </Border>
-                        <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left"
+                        <Border Background="{StaticResource MetroBubbleOtherBrush}" CornerRadius="16,16,16,4" Padding="12,9" HorizontalAlignment="Left"
                                 MaxWidth="280" Tapped="Forward_Tapped"
                                 Visibility="{Binding IsForward, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
@@ -53,7 +53,7 @@
                             </StackPanel>
                         </Border>
                         <!-- 图文混排 / 多图 -->
-                        <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left" MaxWidth="280"
+                        <Border Background="{StaticResource MetroBubbleOtherBrush}" CornerRadius="16,16,16,4" Padding="12,9" HorizontalAlignment="Left" MaxWidth="280"
                                 Visibility="{Binding UseMixedLayout, Converter={StaticResource BoolToVisibility}}">
                             <ItemsControl ItemsSource="{Binding Elements}">
                                 <ItemsControl.ItemTemplate>
@@ -77,7 +77,7 @@
                             </ItemsControl>
                         </Border>
                         <!-- 图片：点按进入全屏查看；无 URL 时显示占位，点按再向服务器解析 -->
-                        <Border Background="{StaticResource MetroSubtleBrush}" Padding="0" HorizontalAlignment="Left"
+                        <Border Background="{StaticResource ModernElevatedBrush}" CornerRadius="12" Padding="0" HorizontalAlignment="Left"
                                 Tapped="Image_Tapped"
                                 Visibility="{Binding IsImageOnly, Converter={StaticResource BoolToVisibility}}">
                             <Grid>
@@ -97,7 +97,7 @@
                                 Visibility="{Binding IsSticker, Converter={StaticResource BoolToVisibility}}">
                             <Image Source="{Binding ImagePath}" Width="90" Height="90" Stretch="Uniform" />
                         </Border>
-                        <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left"
+                        <Border Background="{StaticResource MetroBubbleOtherBrush}" CornerRadius="16,16,16,4" Padding="12,9" HorizontalAlignment="Left"
                                 Width="{Binding VoiceWidth}" Tapped="Voice_Tapped"
                                 Visibility="{Binding IsVoice, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Orientation="Horizontal">
@@ -108,7 +108,7 @@
                             </StackPanel>
                         </Border>
                         <!-- 链接卡片 -->
-                        <Border Background="{StaticResource MetroPanelBrush}" Padding="10" HorizontalAlignment="Left" Width="240"
+                        <Border Background="{StaticResource MetroPanelBrush}" CornerRadius="12" Padding="10" HorizontalAlignment="Left" Width="240"
                                 Visibility="{Binding IsLinkCard, Converter={StaticResource BoolToVisibility}}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -129,7 +129,7 @@
                             </Grid>
                         </Border>
                         <!-- 文件卡片（位置卡风格：顶区图标 + 文件信息 + 操作提示） -->
-                        <Border Background="{StaticResource MetroPanelBrush}" Padding="0" HorizontalAlignment="Left" Width="240"
+                        <Border Background="{StaticResource MetroPanelBrush}" CornerRadius="12" Padding="0" HorizontalAlignment="Left" Width="240"
                                 Visibility="{Binding IsFile, Converter={StaticResource BoolToVisibility}}"
                                 Tapped="File_Tapped">
                             <StackPanel>
@@ -152,7 +152,7 @@
                             </StackPanel>
                         </Border>
                         <!-- 位置 -->
-                        <Border Background="{StaticResource MetroPanelBrush}" Padding="0" HorizontalAlignment="Left" Width="220"
+                        <Border Background="{StaticResource MetroPanelBrush}" CornerRadius="12" Padding="0" HorizontalAlignment="Left" Width="220"
                                 Visibility="{Binding IsLocation, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel>
                                 <Rectangle Width="220" Height="100">
@@ -169,7 +169,7 @@
                             </StackPanel>
                         </Border>
                         <!-- 表情回应 -->
-                        <Border Background="{StaticResource MetroSubtleBrush}" Padding="8,3" HorizontalAlignment="Left" Margin="0,4,0,0"
+                        <Border Background="{StaticResource ModernElevatedBrush}" CornerRadius="10" Padding="8,3" HorizontalAlignment="Left" Margin="0,4,0,0"
                                 Visibility="{Binding HasReactions, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Text="{Binding ReactionText}" FontSize="13"
                                        Foreground="{StaticResource MetroPrimaryTextBrush}" />
@@ -188,17 +188,17 @@
                 <StackPanel Margin="60,6,0,6" HorizontalAlignment="Right" MaxWidth="270"
                             Holding="Bubble_Holding" RightTapped="Bubble_RightTapped" DoubleTapped="Bubble_DoubleTapped">
                     <!-- 引用 -->
-                    <Border Background="{StaticResource MetroSubtleBrush}" BorderBrush="{StaticResource MetroAccentBrush}"
-                            BorderThickness="3,0,0,0" Padding="8,4" HorizontalAlignment="Right" Margin="0,0,0,3"
+                    <Border Background="{StaticResource ModernElevatedBrush}" BorderBrush="{StaticResource MetroAccentBrush}"
+                            BorderThickness="3,0,0,0" CornerRadius="8" Padding="8,4" HorizontalAlignment="Right" Margin="0,0,0,3"
                             Visibility="{Binding HasReply, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="{Binding ReplyPreview}" FontSize="11" TextWrapping="Wrap" MaxWidth="240"
                                    Foreground="{StaticResource MetroSecondaryTextBrush}" />
                     </Border>
-                    <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
+                    <Border Background="{StaticResource ModernBubbleMeBrush}" CornerRadius="16,16,4,16" Padding="12,9" HorizontalAlignment="Right"
                             Visibility="{Binding IsTextOnly, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="{Binding BubbleText, Source={StaticResource UiScale}}" Foreground="White" />
                     </Border>
-                    <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
+                    <Border Background="{StaticResource ModernBubbleMeBrush}" CornerRadius="16,16,4,16" Padding="12,9" HorizontalAlignment="Right"
                             MaxWidth="280" Tapped="Forward_Tapped"
                             Visibility="{Binding IsForward, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
@@ -210,7 +210,7 @@
                         </StackPanel>
                     </Border>
                     <!-- 图文混排 / 多图 -->
-                    <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right" MaxWidth="280"
+                    <Border Background="{StaticResource ModernBubbleMeBrush}" CornerRadius="16,16,4,16" Padding="12,9" HorizontalAlignment="Right" MaxWidth="280"
                             Visibility="{Binding UseMixedLayout, Converter={StaticResource BoolToVisibility}}">
                         <ItemsControl ItemsSource="{Binding Elements}">
                             <ItemsControl.ItemTemplate>
@@ -233,7 +233,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </Border>
-                    <Border Background="{StaticResource MetroSubtleBrush}" Padding="0" HorizontalAlignment="Right"
+                    <Border Background="{StaticResource ModernElevatedBrush}" CornerRadius="12" Padding="0" HorizontalAlignment="Right"
                             Tapped="Image_Tapped"
                             Visibility="{Binding IsImageOnly, Converter={StaticResource BoolToVisibility}}">
                         <Grid>
@@ -253,7 +253,7 @@
                             Visibility="{Binding IsSticker, Converter={StaticResource BoolToVisibility}}">
                         <Image Source="{Binding ImagePath}" Width="90" Height="90" Stretch="Uniform" />
                     </Border>
-                    <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
+                    <Border Background="{StaticResource ModernBubbleMeBrush}" CornerRadius="16,16,4,16" Padding="12,9" HorizontalAlignment="Right"
                             Width="{Binding VoiceWidth}" Tapped="Voice_Tapped"
                             Visibility="{Binding IsVoice, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel Orientation="Horizontal">
@@ -264,7 +264,7 @@
                         </StackPanel>
                     </Border>
                     <!-- 链接卡片 -->
-                    <Border Background="{StaticResource MetroPanelBrush}" Padding="10" HorizontalAlignment="Right" Width="240"
+                    <Border Background="{StaticResource MetroPanelBrush}" CornerRadius="12" Padding="10" HorizontalAlignment="Right" Width="240"
                             Visibility="{Binding IsLinkCard, Converter={StaticResource BoolToVisibility}}">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -285,7 +285,7 @@
                         </Grid>
                     </Border>
                     <!-- 文件卡片（位置卡风格） -->
-                    <Border Background="{StaticResource MetroPanelBrush}" Padding="0" HorizontalAlignment="Right" Width="240"
+                    <Border Background="{StaticResource MetroPanelBrush}" CornerRadius="12" Padding="0" HorizontalAlignment="Right" Width="240"
                             Visibility="{Binding IsFile, Converter={StaticResource BoolToVisibility}}"
                             Tapped="File_Tapped">
                         <StackPanel>
@@ -308,7 +308,7 @@
                         </StackPanel>
                     </Border>
                     <!-- 位置 -->
-                    <Border Background="{StaticResource MetroPanelBrush}" Padding="0" HorizontalAlignment="Right" Width="220"
+                    <Border Background="{StaticResource MetroPanelBrush}" CornerRadius="12" Padding="0" HorizontalAlignment="Right" Width="220"
                             Visibility="{Binding IsLocation, Converter={StaticResource BoolToVisibility}}">
                         <StackPanel>
                             <Rectangle Width="220" Height="100">
@@ -325,7 +325,7 @@
                         </StackPanel>
                     </Border>
                     <!-- 表情回应 -->
-                    <Border Background="{StaticResource MetroSubtleBrush}" Padding="8,3" HorizontalAlignment="Right" Margin="0,4,0,0"
+                    <Border Background="{StaticResource ModernElevatedBrush}" CornerRadius="10" Padding="8,3" HorizontalAlignment="Right" Margin="0,4,0,0"
                             Visibility="{Binding HasReactions, Converter={StaticResource BoolToVisibility}}">
                         <TextBlock Text="{Binding ReactionText}" FontSize="13"
                                    Foreground="{StaticResource MetroPrimaryTextBrush}" />
@@ -353,16 +353,16 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Rectangle Grid.Column="0" Width="40" Height="40" VerticalAlignment="Top">
-                        <Rectangle.Fill>
+                    <Ellipse Grid.Column="0" Width="40" Height="40" VerticalAlignment="Top">
+                        <Ellipse.Fill>
                             <ImageBrush ImageSource="{Binding SenderAvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
-                        </Rectangle.Fill>
-                    </Rectangle>
+                        </Ellipse.Fill>
+                    </Ellipse>
                     <StackPanel Grid.Column="1" Margin="10,0,0,0" HorizontalAlignment="Left"
                                 Holding="Bubble_Holding" RightTapped="Bubble_RightTapped" DoubleTapped="Bubble_DoubleTapped">
                         <TextBlock Text="{Binding SenderName}" FontSize="11"
                                    Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="2,0,0,3" />
-                        <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left"
+                        <Border Background="{StaticResource MetroBubbleOtherBrush}" CornerRadius="16,16,16,4" Padding="12,9" HorizontalAlignment="Left"
                                 Tapped="Video_Tapped">
                             <StackPanel Orientation="Horizontal">
                                 <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE714;" FontSize="16"
@@ -386,7 +386,7 @@
                            Visibility="{Binding ShowTimeDivider, Converter={StaticResource BoolToVisibility}}" />
                 <StackPanel Margin="60,6,0,6" HorizontalAlignment="Right" MaxWidth="270"
                             Holding="Bubble_Holding" RightTapped="Bubble_RightTapped" DoubleTapped="Bubble_DoubleTapped">
-                    <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
+                    <Border Background="{StaticResource ModernBubbleMeBrush}" CornerRadius="16,16,4,16" Padding="12,9" HorizontalAlignment="Right"
                             Tapped="Video_Tapped">
                         <StackPanel Orientation="Horizontal">
                             <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE714;" FontSize="16" Foreground="White" VerticalAlignment="Center" />
@@ -437,40 +437,40 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- WP-style hero title -->
-        <Grid Grid.Row="0" Margin="19,10,8,4">
+        <!-- Modern compact chat header -->
+        <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="聊天" Style="{StaticResource MetroPageTitleStyle}" />
-                <TextBlock Text="{Binding Title}" Style="{StaticResource MetroHeroTitleStyle}"
-                           Margin="0,-2,0,0" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-            <Button Grid.Column="1" x:Name="ChatBgButton" Click="ChatBgButton_Click" Background="Transparent"
-                    BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}">
-                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE790;" FontSize="22" />
+            <Button Grid.Column="0" x:Name="BackButton" Click="BackButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72B;" FontSize="18"
+                          Foreground="{StaticResource MetroPrimaryTextBrush}" />
             </Button>
-            <Button Grid.Column="2" x:Name="GroupInfoButton" Click="GroupInfoButton_Click" Background="Transparent"
-                    BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="22" Content="群"
-                    Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}" />
-            <Button Grid.Column="3" x:Name="MultiSelectHeaderButton" Click="MultiSelectHeader_Click"
-                    Background="Transparent" BorderThickness="0" VerticalAlignment="Top"
-                    Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}"
+            <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
+                       FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                       Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            <Button Grid.Column="2" x:Name="ChatBgButton" Click="ChatBgButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE790;" FontSize="18"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
+            </Button>
+            <Button Grid.Column="3" x:Name="GroupInfoButton" Click="GroupInfoButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}"
+                    Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE716;" FontSize="18"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
+            </Button>
+            <Button Grid.Column="4" x:Name="MultiSelectHeaderButton" Click="MultiSelectHeader_Click"
+                    Style="{StaticResource ModernIconButtonStyle}"
                     ToolTipService.ToolTip="多选">
-                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE762;" FontSize="20" />
-            </Button>
-            <Button Grid.Column="4" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
-                    BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}">
-                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72B;" FontSize="22" />
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE762;" FontSize="18"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
             </Button>
         </Grid>
 
@@ -486,7 +486,7 @@
                     <!-- 查看更多消息：上拉/点击拉取更早的云端历史（好友漫游 / 群序列历史；mock 为伪造数据） -->
                     <Grid Padding="0,6,0,10" HorizontalAlignment="Stretch"
                           Visibility="{Binding CanLoadEarlier, Converter={StaticResource BoolToVisibility}}">
-                        <Border x:Name="LoadEarlierStrip" Background="{StaticResource MetroSubtleBrush}"
+                        <Border x:Name="LoadEarlierStrip" Background="{StaticResource ModernElevatedBrush}" CornerRadius="14"
                                 Padding="14,7" HorizontalAlignment="Center"
                                 Tapped="LoadEarlierStrip_Tapped">
                             <TextBlock Text="查看更多消息" FontSize="12" FontWeight="SemiLight"
@@ -506,7 +506,7 @@
             <!-- A remote transcript can take several seconds (especially after a Frp
                  reconnect). Keep the page visibly alive so an empty list is not mistaken
                  for a frozen chat. IsHitTestVisible=false keeps the composer usable. -->
-            <Border Background="#CC101820" IsHitTestVisible="False"
+            <Border Background="{StaticResource ModernOverlayBrush}" IsHitTestVisible="False"
                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                     <ProgressRing IsActive="True" Width="42" Height="42"
@@ -523,7 +523,7 @@
             <TextBlock Text="对方正在输入…" FontSize="12" Margin="24,0,0,4"
                        Foreground="{StaticResource MetroSecondaryTextBrush}"
                        Visibility="{Binding IsPeerTyping, Converter={StaticResource BoolToVisibility}}" />
-            <Grid Background="{StaticResource MetroSubtleBrush}" Padding="12,6" Margin="0,0,0,0"
+            <Grid Background="{StaticResource ModernElevatedBrush}" Padding="12,8" Margin="0,0,0,0"
                   Visibility="{Binding HasReplyTarget, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -538,7 +538,7 @@
                     <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE711;" FontSize="14" />
                 </Button>
             </Grid>
-            <Grid Background="{StaticResource MetroSubtleBrush}" Padding="10,8"
+            <Grid Background="{StaticResource ModernElevatedBrush}" Padding="10,8"
                   Visibility="{Binding HasPendingImages, Converter={StaticResource BoolToVisibility}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -603,7 +603,9 @@
         </Grid>
 
         <!-- 输入栏 -->
-        <Grid x:Name="InputBar" Grid.Row="3" Background="{StaticResource MetroPanelBrush}" Padding="8,8" MinHeight="56">
+        <Grid x:Name="InputBar" Grid.Row="3" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,1,0,0"
+              Padding="6,8,8,8" MinHeight="58">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -613,57 +615,66 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" x:Name="EmojiButton" Click="EmojiButton_Click" Background="Transparent"
-                    BorderThickness="0" Padding="6" VerticalAlignment="Center">
-                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE76E;" FontSize="20" />
+            <Button Grid.Column="0" x:Name="EmojiButton" Click="EmojiButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}" Padding="8,6" MinWidth="40" MinHeight="40">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE76E;" FontSize="18"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
             </Button>
-            <Button Grid.Column="1" x:Name="ImageButton" Click="ImageButton_Click" Background="Transparent"
-                    BorderThickness="0" Padding="6" VerticalAlignment="Center">
-                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B9;" FontSize="20" />
+            <Button Grid.Column="1" x:Name="ImageButton" Click="ImageButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}" Padding="8,6" MinWidth="40" MinHeight="40">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B9;" FontSize="18"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
             </Button>
-            <Button Grid.Column="2" x:Name="VoiceButton" Click="VoiceButton_Click" Background="Transparent"
-                    BorderThickness="0" Padding="6" VerticalAlignment="Center" FontSize="20">
-                <FontIcon FontFamily="Segoe MDL2 Assets" x:Name="VoiceGlyph" Glyph="&#xE720;" FontSize="20" />
+            <Button Grid.Column="2" x:Name="VoiceButton" Click="VoiceButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}" Padding="8,6" MinWidth="40" MinHeight="40" FontSize="20">
+                <FontIcon FontFamily="Segoe MDL2 Assets" x:Name="VoiceGlyph" Glyph="&#xE720;" FontSize="18"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
             </Button>
-            <Button Grid.Column="3" x:Name="FileButton" Click="FileButton_Click" Background="Transparent"
-                    BorderThickness="0" Padding="6" VerticalAlignment="Center">
-                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B7;" FontSize="20" />
+            <Button Grid.Column="3" x:Name="FileButton" Click="FileButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}" Padding="8,6" MinWidth="40" MinHeight="40">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE8B7;" FontSize="18"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
             </Button>
-            <Button Grid.Column="4" x:Name="LocationButton" Click="LocationButton_Click" Background="Transparent"
-                    BorderThickness="0" Padding="6" VerticalAlignment="Center">
-                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE81D;" FontSize="20" />
+            <Button Grid.Column="4" x:Name="LocationButton" Click="LocationButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}" Padding="8,6" MinWidth="40" MinHeight="40">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE81D;" FontSize="18"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
             </Button>
-            <TextBox Grid.Column="5" x:Name="InputBox"
-                     Text="{Binding Draft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     PlaceholderText="输入消息…"
-                     KeyDown="InputBox_KeyDown"
-                     TextChanged="InputBox_TextChanged"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap" MaxHeight="100"
-                     VerticalAlignment="Center" Margin="6,0,0,0" />
+            <Border Grid.Column="5" Background="{StaticResource ModernElevatedBrush}" CornerRadius="18"
+                    Padding="4,0" Margin="2,0,0,0" VerticalAlignment="Center" MinHeight="38">
+                <TextBox x:Name="InputBox"
+                         Text="{Binding Draft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         PlaceholderText="输入消息…"
+                         KeyDown="InputBox_KeyDown"
+                         TextChanged="InputBox_TextChanged"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap" MaxHeight="100"
+                         Background="Transparent" BorderThickness="0"
+                         VerticalAlignment="Center" Margin="8,4,8,4" />
+            </Border>
             <Button Grid.Column="6" x:Name="SendButton"
                     Click="SendButton_Click"
                     IsEnabled="{Binding CanSend}"
                     Background="{StaticResource MetroAccentBrush}" Foreground="White"
-                    BorderThickness="0" Margin="8,0,0,0" Padding="12,10" VerticalAlignment="Center">
+                    BorderThickness="0" Margin="8,0,0,0" Padding="14,10" VerticalAlignment="Center">
                 <StackPanel Orientation="Horizontal">
                     <ProgressRing IsActive="{Binding IsSending}" Width="16" Height="16"
                                   Margin="0,0,6,0"
                                   Visibility="{Binding IsSending, Converter={StaticResource BoolToVisibility}}" />
-                    <TextBlock Text="{Binding SendButtonText}" />
+                    <TextBlock Text="{Binding SendButtonText}" FontWeight="SemiBold" />
                 </StackPanel>
             </Button>
         </Grid>
 
         <!-- 录音提示 -->
-        <Border Grid.Row="4" x:Name="RecordingBar" Background="{StaticResource MetroPanelBrush}" Visibility="Collapsed" Padding="24,12">
+        <Border Grid.Row="4" x:Name="RecordingBar" Background="{StaticResource MetroChromeBrush}" Visibility="Collapsed" Padding="24,12">
             <TextBlock x:Name="RecordingHint" Text="● 录音中… 0″   再次点击麦克风结束并发送"
                        Foreground="{StaticResource MetroDangerBrush}" FontSize="14" />
         </Border>
 
         <!-- 表情/贴纸面板 -->
         <Grid Grid.Row="4" x:Name="EmojiPanel" Visibility="Collapsed"
-              Background="{StaticResource MetroPanelBrush}" Height="248">
+              Background="{StaticResource MetroChromeBrush}" Height="248">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />

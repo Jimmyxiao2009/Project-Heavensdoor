@@ -10,7 +10,12 @@
     <AssemblyName>QQReborn.ServerHost</AssemblyName>
     <ApplicationIcon />
     <Product>QQ Reborn Server Host</Product>
-    <Description>QQ Reborn steward — start NapCat local gateway (RealServer)</Description>
+    <Description>QQ Reborn steward — one-click NapCat install + local gateway</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- OneBot defaults; FindTemplateDir looks under napcat-config and NapCat\config-templates -->
+    <Content Include="napcat-config\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

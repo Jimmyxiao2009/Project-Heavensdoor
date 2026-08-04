@@ -10,35 +10,30 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 大标题头部 -->
-        <Grid Grid.Row="0" Margin="24,12,16,8">
+        <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="个性化" FontSize="13" CharacterSpacing="40"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                <TextBlock Text="聊天背景" FontSize="36" FontWeight="Light" CharacterSpacing="-20"
-                           Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-            <Button Grid.Column="1" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
-                    BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="22" Content="&#x2190;" />
+            <Button Grid.Column="0" x:Name="BackButton" Click="BackButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}">
+                <FontIcon Glyph="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                          Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            </Button>
+            <TextBlock Grid.Column="1" Text="聊天背景" Style="{StaticResource ModernHeaderTitleStyle}" />
         </Grid>
 
         <ScrollViewer Grid.Row="1" Padding="0,0,0,24">
-            <StackPanel Margin="20,8,20,0">
-                <TextBlock Text="点击选择一种聊天背景，所有会话立即生效。" FontSize="12" Margin="2,0,0,14"
+            <StackPanel Margin="14,12,14,0">
+                <TextBlock Text="点击选择一种聊天背景，所有会话立即生效。" FontSize="12" Margin="4,0,0,14"
                            TextWrapping="Wrap"
                            Foreground="{StaticResource MetroSecondaryTextBrush}" />
 
-                <!-- 纯色 -->
-                <TextBlock Text="纯色" FontSize="14" CharacterSpacing="40" Margin="2,0,0,10"
-                           Foreground="{StaticResource MetroAccentBrush}" />
+                <TextBlock Text="纯色" Style="{StaticResource MetroSectionLabelStyle}" Margin="4,0,0,10" />
                 <GridView x:Name="SolidGrid"
                           SelectionMode="None" IsItemClickEnabled="True" ItemClick="Swatch_ItemClick"
-                          Padding="0" Margin="0,0,0,20">
+                          Padding="0" Margin="0,0,0,18">
                     <GridView.ItemContainerStyle>
                         <Style TargetType="GridViewItem">
                             <Setter Property="Padding" Value="0" />
@@ -55,32 +50,29 @@
                     <GridView.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Width="100">
-                                <Grid Width="100" Height="140">
-                                    <!-- color preview -->
-                                    <Rectangle Width="100" Height="140" Fill="{Binding Preview}" />
-                                    <!-- selection border -->
-                                    <Border BorderBrush="{StaticResource MetroAccentBrush}" BorderThickness="3"
-                                            Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
-                                    <!-- check mark -->
-                                    <Border Background="{StaticResource MetroAccentBrush}" Width="24" Height="24"
-                                            HorizontalAlignment="Right" VerticalAlignment="Top"
-                                            Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Text="&#x2713;" FontSize="15" Foreground="White"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                </Grid>
-                                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="Light"
+                                <Border Width="100" Height="140" CornerRadius="12" BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="1">
+                                    <Grid>
+                                        <Rectangle Fill="{Binding Preview}" />
+                                        <Border BorderBrush="{StaticResource MetroAccentBrush}" BorderThickness="2" CornerRadius="12"
+                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
+                                        <Border Background="{StaticResource MetroAccentBrush}" Width="22" Height="22" CornerRadius="11"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"
+                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}">
+                                            <FontIcon Glyph="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="White"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                                <TextBlock Text="{Binding Label}" FontSize="12"
                                            Foreground="{StaticResource MetroSecondaryTextBrush}"
                                            TextAlignment="Center" TextTrimming="CharacterEllipsis"
-                                           Margin="0,6,0,0" />
+                                           Margin="0,8,0,0" />
                             </StackPanel>
                         </DataTemplate>
                     </GridView.ItemTemplate>
                 </GridView>
 
-                <!-- 图片 -->
-                <TextBlock Text="图片" FontSize="14" CharacterSpacing="40" Margin="2,0,0,10"
-                           Foreground="{StaticResource MetroAccentBrush}" />
+                <TextBlock Text="图片" Style="{StaticResource MetroSectionLabelStyle}" Margin="4,0,0,10" />
                 <GridView x:Name="ImageGrid"
                           SelectionMode="None" IsItemClickEnabled="True" ItemClick="Swatch_ItemClick"
                           Padding="0" Margin="0,0,0,8">
@@ -100,28 +92,27 @@
                     <GridView.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Width="100">
-                                <Grid Width="100" Height="140">
-                                    <!-- image preview -->
-                                    <Rectangle Width="100" Height="140">
-                                        <Rectangle.Fill>
-                                            <ImageBrush ImageSource="{Binding ImageSource}" Stretch="UniformToFill" />
-                                        </Rectangle.Fill>
-                                    </Rectangle>
-                                    <!-- selection border -->
-                                    <Border BorderBrush="{StaticResource MetroAccentBrush}" BorderThickness="3"
-                                            Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
-                                    <!-- check mark -->
-                                    <Border Background="{StaticResource MetroAccentBrush}" Width="24" Height="24"
-                                            HorizontalAlignment="Right" VerticalAlignment="Top"
-                                            Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}">
-                                        <TextBlock Text="&#x2713;" FontSize="15" Foreground="White"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                </Grid>
-                                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="Light"
+                                <Border Width="100" Height="140" CornerRadius="12" BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="1">
+                                    <Grid>
+                                        <Rectangle>
+                                            <Rectangle.Fill>
+                                                <ImageBrush ImageSource="{Binding ImageSource}" Stretch="UniformToFill" />
+                                            </Rectangle.Fill>
+                                        </Rectangle>
+                                        <Border BorderBrush="{StaticResource MetroAccentBrush}" BorderThickness="2" CornerRadius="12"
+                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}" />
+                                        <Border Background="{StaticResource MetroAccentBrush}" Width="22" Height="22" CornerRadius="11"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0"
+                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibility}}">
+                                            <FontIcon Glyph="&#xE73E;" FontFamily="Segoe MDL2 Assets" FontSize="12" Foreground="White"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                                <TextBlock Text="{Binding Label}" FontSize="12"
                                            Foreground="{StaticResource MetroSecondaryTextBrush}"
                                            TextAlignment="Center" TextTrimming="CharacterEllipsis"
-                                           Margin="0,6,0,0" />
+                                           Margin="0,8,0,0" />
                             </StackPanel>
                         </DataTemplate>
                     </GridView.ItemTemplate>

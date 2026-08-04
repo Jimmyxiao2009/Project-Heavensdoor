@@ -11,7 +11,7 @@ namespace QQReborn.App.Views
     /// <summary>
     /// 加好友 / 加群.
     /// Remote mode: a pure-digit query does a real GetUserProfileAsync(uin) lookup against
-    /// the backend; anything else is honestly reported as unsupported (LagrangeV2 has no
+    /// the backend; anything else is honestly reported as unsupported (gateway has no
     /// nickname-search API), and the 加好友 button stays disabled because there is no
     /// send-friend-request API either -- tapping it must never pretend a request went out.
     /// Mock mode keeps the original self-contained fabricated demo (no service involved),
@@ -68,7 +68,7 @@ namespace QQReborn.App.Views
 
             bool allDigits = IsAllDigits(query);
 
-            if (App.ChatService is RemoteChatService remote)
+            if (AppServices.Gateway is IGatewayService remote)
             {
                 if (!allDigits || !long.TryParse(query, out var uin))
                 {
@@ -99,7 +99,7 @@ namespace QQReborn.App.Views
             ResultCard.Visibility = Visibility.Visible;
         }
 
-        private async System.Threading.Tasks.Task SearchRemoteAsync(RemoteChatService remote, long uin)
+        private async System.Threading.Tasks.Task SearchRemoteAsync(IGatewayService remote, long uin)
         {
             try
             {
@@ -116,7 +116,7 @@ namespace QQReborn.App.Views
                     ? "Lv." + profile.Level
                     : profile.Signature + "  ·  Lv." + profile.Level;
 
-                // LagrangeV2 has no "send friend request" API -- never pretend the tap
+                // Gateway has no "send friend request" API yet -- never pretend the tap
                 // succeeded. Disabled + explanatory label, same honesty convention as
                 // FriendRequestsPage's "同意请求" handling.
                 AddButton.Content = "暂不支持发送好友申请";
@@ -142,7 +142,7 @@ namespace QQReborn.App.Views
 
         private void AddButton_Click(object sender, RoutedEventArgs e)
         {
-            if (App.ChatService is RemoteChatService)
+            if (AppServices.Gateway != null)
             {
                 // Button is disabled in remote mode (see SearchRemoteAsync) -- this is a
                 // defensive no-op, not a real path, since there's no API to call.

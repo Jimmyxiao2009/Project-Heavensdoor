@@ -14,9 +14,7 @@ namespace QQReborn.App.Views
         public MomentDetailPage()
         {
             InitializeComponent();
-            _moments = App.ChatService is RemoteChatService remote
-                ? (IMomentsService)new RemoteMomentsService(remote)
-                : new MockMomentsService();
+            _moments = AppServices.Moments;
         }
 
         protected override void OnNavigatedTo(Windows.UI.Xaml.Navigation.NavigationEventArgs e)

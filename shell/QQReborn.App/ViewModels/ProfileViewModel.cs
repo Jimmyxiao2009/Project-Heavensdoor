@@ -68,11 +68,11 @@ namespace QQReborn.App.ViewModels
                     UinText = "QQ: " + self.Uin;
                 }
 
-                var remote = _chat as RemoteChatService;
+                var remote = _chat as IGatewayService;
                 if (remote != null)
                 {
                     // Real backend: there is no VIP concept in the QQ protocol library
-                    // (Lagrange), so the badge is a purely cosmetic Tencent-side field --
+                    // (not exposed by the gateway), so the badge is a cosmetic field --
                     // don't fabricate it. Level comes from GetUserProfileAsync; if that
                     // fails or the self uin isn't known yet, fall back to "Lv.--" rather
                     // than showing a made-up number.

@@ -12,19 +12,19 @@ namespace QQReborn.App.Views
 {
     /// <summary>
     /// Real-account QR login, reached from Settings' "登录 QQ" row. Only functional when
-    /// App.ChatService is a RemoteChatService pointed at QQReborn.RealServer -- against the
+    /// App.ChatService is a IGatewayService pointed at QQReborn.RealServer -- against the
     /// mock backend (or the fake demo server) this just reports that remote isn't enabled.
     /// </summary>
     public sealed partial class AccountLoginPage : Page
     {
         private readonly AccountLoginViewModel _vm;
-        private readonly RemoteChatService _remote;
+        private readonly IGatewayService _remote;
 
         public AccountLoginPage()
         {
             InitializeComponent();
             _vm = new AccountLoginViewModel(new MockProfileService());
-            _remote = App.ChatService as RemoteChatService;
+            _remote = AppServices.Gateway;
             DataContext = _vm;
         }
 
@@ -48,7 +48,7 @@ namespace QQReborn.App.Views
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-            // RemoteChatService is an app-wide singleton (App.ChatService) but this page is
+            // IGatewayService is an app-wide singleton (App.ChatService) but this page is
             // transient -- without unsubscribing, repeat visits would stack duplicate handlers.
             if (_remote != null)
             {
@@ -70,9 +70,8 @@ namespace QQReborn.App.Views
             _vm.StatusDetailText = "正在连接电脑网关并绑定 NapCat，请稍候…";
             try
             {
-                // NapCat local gateway: do not send a stale settings QQ number — empty
-                // means "bind whatever NapCat is logged in as".
-                var accepted = await _remote.ConfigureAccountAsync("", "", "");
+                // Bind whatever NapCat is currently logged in as.
+                var accepted = await _remote.ConfigureAccountAsync();
                 if (!accepted)
                 {
                     _vm.StatusText = "连接网关失败";

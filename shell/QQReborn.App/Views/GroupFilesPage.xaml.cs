@@ -80,7 +80,7 @@ namespace QQReborn.App.Views
             EmptyText.Text = "加载中…";
             EmptyText.Visibility = Visibility.Visible;
 
-            var remote = App.ChatService as RemoteChatService;
+            var remote = AppServices.Gateway;
             if (remote == null)
             {
                 EmptyText.Text = "演示模式不支持群文件";
@@ -124,7 +124,7 @@ namespace QQReborn.App.Views
                 catch { }
                 return;
             }
-            var remote = App.ChatService as RemoteChatService;
+            var remote = AppServices.Gateway;
             if (remote == null)
             {
                 try { await new MessageDialog("演示模式不支持。", "提示").ShowAsync(); }
@@ -175,7 +175,7 @@ namespace QQReborn.App.Views
                 return;
             }
 
-            var remote = App.ChatService as RemoteChatService;
+            var remote = AppServices.Gateway;
             if (remote == null) return;
 
             try

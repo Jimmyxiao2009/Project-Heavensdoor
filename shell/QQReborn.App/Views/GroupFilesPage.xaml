@@ -11,60 +11,72 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="24,12,16,8">
+        <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="群文件" FontSize="13" CharacterSpacing="40"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                <TextBlock x:Name="TitleText" Text="根目录" FontSize="28" FontWeight="Light"
-                           CharacterSpacing="-20"
+            <Button Grid.Column="0" Click="BackButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}">
+                <FontIcon Glyph="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                          Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            </Button>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="群文件" FontSize="11" Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                <TextBlock x:Name="TitleText" Text="根目录" FontSize="16" FontWeight="SemiBold"
                            Foreground="{StaticResource MetroPrimaryTextBrush}"
                            TextTrimming="CharacterEllipsis" />
             </StackPanel>
-            <Button x:Name="NewFolderButton" Grid.Column="1" Content="新建文件夹" Click="NewFolder_Click"
-                    Background="Transparent" BorderThickness="0" Padding="8,6"
-                    Foreground="{StaticResource MetroAccentBrush}" FontSize="13"
-                    VerticalAlignment="Top" Margin="0,8,4,0" Visibility="Collapsed" />
-            <Button Grid.Column="2" Click="BackButton_Click" Background="Transparent"
-                    BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="22" Content="&#x2190;" />
+            <Button x:Name="NewFolderButton" Grid.Column="2" Content="新建" Click="NewFolder_Click"
+                    Style="{StaticResource ModernGhostButtonStyle}" Margin="0,0,8,0" Visibility="Collapsed" />
         </Grid>
 
         <Grid Grid.Row="1">
             <ListView x:Name="FileList" SelectionMode="None" IsItemClickEnabled="True"
-                      ItemClick="FileList_ItemClick" Padding="12,0,12,24">
+                      ItemClick="FileList_ItemClick" Padding="12,10,12,24">
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="models:GroupFileEntry">
-                        <Grid Padding="8,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <FontIcon Grid.Column="0" FontFamily="Segoe MDL2 Assets"
-                                      Glyph="&#xE8B7;" FontSize="22" Margin="0,0,12,0"
-                                      VerticalAlignment="Center"
-                                      Foreground="{StaticResource MetroAccentBrush}" />
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding Name}" FontSize="16"
-                                           Foreground="{StaticResource MetroPrimaryTextBrush}"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding SizeText}" FontSize="12" Margin="0,4,0,0"
+                        <Border Style="{StaticResource ModernCardStyle}" Margin="0,0,0,8" Padding="12,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="10"
+                                        Background="{StaticResource ModernAccentSoftBrush}" Margin="0,0,12,0">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets"
+                                              Glyph="&#xE8B7;" FontSize="16"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Foreground="{StaticResource MetroAccentBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold"
+                                               Foreground="{StaticResource MetroPrimaryTextBrush}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding SizeText}" FontSize="12" Margin="0,4,0,0"
+                                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                                </StackPanel>
+                                <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontFamily="Segoe MDL2 Assets" FontSize="12"
+                                           VerticalAlignment="Center"
                                            Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                            </StackPanel>
-                            <TextBlock Grid.Column="2" Text="&#x203A;" FontSize="18"
-                                       VerticalAlignment="Center"
-                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                        </Grid>
+                            </Grid>
+                        </Border>
                     </DataTemplate>
                 </ListView.ItemTemplate>
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="Margin" Value="0" />
+                    </Style>
+                </ListView.ItemContainerStyle>
             </ListView>
             <TextBlock x:Name="EmptyText" Text="加载中…" HorizontalAlignment="Center"
-                       VerticalAlignment="Center" FontSize="14"
+                       VerticalAlignment="Center" FontSize="13"
                        Foreground="{StaticResource MetroSecondaryTextBrush}"
                        Visibility="Collapsed" />
         </Grid>

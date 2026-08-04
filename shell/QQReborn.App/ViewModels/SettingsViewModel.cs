@@ -18,7 +18,7 @@ namespace QQReborn.App.ViewModels
             _profile = profile;
         }
 
-        public string VersionText => "QQ Reborn 0.1 · 为 Windows 10 Mobile 打造";
+        public string VersionText => "QQ Reborn 0.2.0 · 为 Windows 10 Mobile 打造";
 
         private bool _darkMode = true;
         public bool DarkMode { get => _darkMode; private set => Set(ref _darkMode, value); }
@@ -97,35 +97,6 @@ namespace QQReborn.App.ViewModels
             set { if (Set(ref _accessPassword, value)) Persist(); }
         }
 
-        // Legacy sign fields kept for LocalSettings compatibility only (UI removed; NapCat path).
-        private bool _useSelfHostedSignServer;
-        public bool UseSelfHostedSignServer
-        {
-            get => _useSelfHostedSignServer;
-            set { if (Set(ref _useSelfHostedSignServer, value)) Persist(); }
-        }
-
-        private string _signServerUrl = "";
-        public string SignServerUrl
-        {
-            get => _signServerUrl;
-            set { if (Set(ref _signServerUrl, value)) Persist(); }
-        }
-
-        private string _signToken = "";
-        public string SignToken
-        {
-            get => _signToken;
-            set { if (Set(ref _signToken, value)) Persist(); }
-        }
-
-        private string _signUin = "";
-        public string SignUin
-        {
-            get => _signUin;
-            set { if (Set(ref _signUin, value)) Persist(); }
-        }
-
         private string _cacheStatus = "";
         public bool HasCacheStatus => !string.IsNullOrEmpty(_cacheStatus);
         public string CacheStatus
@@ -198,10 +169,6 @@ namespace QQReborn.App.ViewModels
             var port = _settings.ServerPort > 0 && _settings.ServerPort < 65536 ? _settings.ServerPort : 8765;
             _serverPortText = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
             _accessPassword = _settings.AccessPassword ?? "";
-            _useSelfHostedSignServer = _settings.UseSelfHostedSignServer;
-            _signServerUrl = _settings.SignServerUrl ?? "";
-            _signToken = _settings.SignToken ?? "";
-            _signUin = _settings.SignUin ?? "";
             _antiRecall = _settings.AntiRecall;
             _showRevokeNotice = _settings.ShowRevokeNotice;
             _doubleTapNudge = _settings.DoubleTapNudge;
@@ -232,7 +199,7 @@ namespace QQReborn.App.ViewModels
         }
 
         /// <summary>ApplicationData LocalSettings caps a single composite value at roughly
-        /// 8KB; stay well under that so a pasted wall of text into e.g. SignToken can't push
+        /// 8KB; stay well under that so a huge paste into host/password can't push
         /// the whole settings write over the limit.</summary>
         private const int MaxPersistedValueLength = 4096;
 
@@ -248,7 +215,7 @@ namespace QQReborn.App.ViewModels
                 if (!int.TryParse((_serverPortText ?? "").Trim(), out port) || port <= 0 || port >= 65536)
                     port = 8765;
                 // Same host sanitizer as the WebSocket client: accept pasted ws://host:port/ws.
-                var host = Services.RemoteChatService.NormalizeServerHost(_serverHost ?? "", ref port);
+                var host = Services.GatewayEndpoint.NormalizeServerHost(_serverHost ?? "", ref port);
                 _settings.ServerHost = Truncate(host);
                 _settings.ServerPort = port;
                 // Keep the UI in sync when the user pasted a full URL into the host box.
@@ -262,10 +229,6 @@ namespace QQReborn.App.ViewModels
                     RaisePropertyChanged(nameof(ServerPortText));
                 }
                 _settings.AccessPassword = Truncate(_accessPassword);
-                _settings.UseSelfHostedSignServer = _useSelfHostedSignServer;
-                _settings.SignServerUrl = Truncate(_signServerUrl);
-                _settings.SignToken = Truncate(_signToken);
-                _settings.SignUin = Truncate(_signUin);
                 _settings.AntiRecall = _antiRecall;
                 _settings.ShowRevokeNotice = _showRevokeNotice;
                 _settings.DoubleTapNudge = _doubleTapNudge;

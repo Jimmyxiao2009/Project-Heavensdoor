@@ -12,71 +12,73 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 大标题头部 -->
-        <Grid Grid.Row="0" Margin="24,12,16,8">
+        <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <StackPanel Grid.Column="0">
-                <TextBlock Text="添加" FontSize="13" CharacterSpacing="40"
-                           Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                <TextBlock Text="加好友 / 加群" FontSize="36" FontWeight="Light" CharacterSpacing="-20"
-                           Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-            <Button Grid.Column="1" x:Name="BackButton" Click="BackButton_Click" Background="Transparent"
-                    BorderThickness="0" VerticalAlignment="Top" Padding="10,6" Margin="0,4,0,0"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="22" Content="&#x2190;" />
+            <Button Grid.Column="0" x:Name="BackButton" Click="BackButton_Click"
+                    Style="{StaticResource ModernIconButtonStyle}">
+                <FontIcon Glyph="&#xE72B;" FontFamily="Segoe MDL2 Assets" FontSize="18"
+                          Foreground="{StaticResource MetroPrimaryTextBrush}" />
+            </Button>
+            <TextBlock Grid.Column="1" Text="加好友 / 加群" Style="{StaticResource ModernHeaderTitleStyle}" />
         </Grid>
 
-        <!-- 搜索框 + 搜索按钮 -->
-        <Grid Grid.Row="1" Margin="20,4,20,8">
+        <Grid Grid.Row="1" Margin="12,12,12,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <Grid Grid.Column="0" Background="{StaticResource MetroPanelBrush}" MinHeight="48">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <FontIcon FontFamily="Segoe MDL2 Assets" Grid.Column="0" Glyph="&#xE721;" FontSize="18" VerticalAlignment="Center" Margin="12,0,4,0" />
-                <TextBox Grid.Column="1" x:Name="QueryBox"
-                         PlaceholderText="输入 QQ号 / 群号 / 昵称"
-                         Background="Transparent" BorderThickness="0"
-                         FontSize="18" FontWeight="Light"
-                         Foreground="{StaticResource MetroPrimaryTextBrush}"
-                         KeyDown="QueryBox_KeyDown"
-                         VerticalAlignment="Center" Margin="2,0,8,0" />
-            </Grid>
+            <Border Grid.Column="0" Style="{StaticResource ModernSearchBarStyle}" Margin="0" MinHeight="44">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Grid.Column="0" Glyph="&#xE721;" FontSize="15"
+                              VerticalAlignment="Center" Margin="0,0,8,0"
+                              Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                    <TextBox Grid.Column="1" x:Name="QueryBox"
+                             PlaceholderText="输入 QQ号 / 群号 / 昵称"
+                             Background="Transparent" BorderThickness="0"
+                             FontSize="15"
+                             Foreground="{StaticResource MetroPrimaryTextBrush}"
+                             KeyDown="QueryBox_KeyDown"
+                             VerticalAlignment="Center" />
+                </Grid>
+            </Border>
 
             <Button Grid.Column="1" x:Name="SearchButton" Content="搜索"
                     Click="SearchButton_Click"
                     Background="{StaticResource MetroAccentBrush}" Foreground="White"
-                    BorderThickness="0" Margin="8,0,0,0" Padding="20,12" VerticalAlignment="Stretch" />
+                    BorderThickness="0" Margin="8,0,0,0" Padding="18,12" VerticalAlignment="Stretch"
+                    FontWeight="SemiBold" />
         </Grid>
 
-        <!-- 输入为空 / 未找到 / 不支持昵称搜索 等提示，复用同一行 -->
         <TextBlock Grid.Row="2" x:Name="EmptyHint" Visibility="Collapsed"
-                   Text="请输入要查找的 QQ号 / 群号 / 昵称" FontSize="13"
-                   Margin="22,2,20,0" Foreground="{StaticResource MetroDangerBrush}" />
+                   Text="请输入要查找的 QQ号 / 群号 / 昵称" FontSize="12"
+                   Margin="16,0,16,4" Foreground="{StaticResource MetroDangerBrush}" />
 
-        <!-- 结果区 -->
         <Grid Grid.Row="3">
-
-            <!-- 空闲提示 -->
             <StackPanel x:Name="IdleHint" VerticalAlignment="Center" HorizontalAlignment="Center">
-                <TextBlock Text="查找好友或群" FontSize="20" FontWeight="Light"
+                <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource ModernAccentSoftBrush}"
+                        HorizontalAlignment="Center" Margin="0,0,0,12">
+                    <FontIcon Glyph="&#xE8FA;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                              Foreground="{StaticResource MetroAccentBrush}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="查找好友或群" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource MetroPrimaryTextBrush}" HorizontalAlignment="Center" />
+                <TextBlock Text="QQ号 · 群号 · 昵称" FontSize="12" Margin="0,6,0,0"
                            Foreground="{StaticResource MetroSecondaryTextBrush}" HorizontalAlignment="Center" />
-                <TextBlock Text="QQ号 · 群号 · 昵称" FontSize="13" Margin="0,8,0,0"
-                           Foreground="{StaticResource MetroSubtleBrush}" HorizontalAlignment="Center" />
             </StackPanel>
 
-            <!-- 结果卡片：mock 模式为演示假数据，远程模式为 GetUserProfileAsync 真实查询结果 -->
             <Border x:Name="ResultCard" Visibility="Collapsed"
-                    Background="{StaticResource MetroPanelBrush}"
-                    VerticalAlignment="Top" Margin="20,8,20,0" Padding="16">
+                    Style="{StaticResource ModernCardStyle}"
+                    VerticalAlignment="Top" Margin="12,4,12,0" Padding="16">
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -84,33 +86,31 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <Rectangle Grid.Column="0" Width="56" Height="56" VerticalAlignment="Top">
-                            <Rectangle.Fill>
+                        <Ellipse Grid.Column="0" Width="56" Height="56" VerticalAlignment="Top">
+                            <Ellipse.Fill>
                                 <ImageBrush ImageSource="ms-appx:///Assets/Avatars/DefaultUserAvatar.png" Stretch="UniformToFill" />
-                            </Rectangle.Fill>
-                        </Rectangle>
+                            </Ellipse.Fill>
+                        </Ellipse>
 
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
-                            <TextBlock x:Name="ResultName" Text="" FontSize="20" FontWeight="SemiLight"
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                            <TextBlock x:Name="ResultName" Text="" FontSize="17" FontWeight="SemiBold"
                                        Foreground="{StaticResource MetroPrimaryTextBrush}"
                                        TextTrimming="CharacterEllipsis" />
-                            <TextBlock x:Name="ResultUin" Text="" FontSize="13" Margin="0,4,0,0"
+                            <TextBlock x:Name="ResultUin" Text="" FontSize="12" Margin="0,4,0,0"
                                        Foreground="{StaticResource MetroSecondaryTextBrush}" />
                             <TextBlock x:Name="ResultSignature" Text="" FontSize="12" Margin="0,4,0,0"
                                        TextTrimming="CharacterEllipsis"
-                                       Foreground="{StaticResource MetroSubtleBrush}" />
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
                         </StackPanel>
                     </Grid>
 
                     <Button x:Name="AddButton" Content="加好友"
                             Click="AddButton_Click"
-                            HorizontalAlignment="Stretch" Margin="0,16,0,0" Padding="0,12"
-                            Background="{StaticResource MetroAccentBrush}" Foreground="White"
-                            BorderThickness="0" FontSize="15" />
+                            Style="{StaticResource MetroAccentButtonStyle}" Margin="0,16,0,0" Padding="0,12" />
 
                     <TextBlock x:Name="SentHint" Visibility="Collapsed"
-                               Text="&#xE73E; 申请已发送，等待对方验证" FontSize="12" Margin="2,10,0,0"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                               Text="申请已发送，等待对方验证" FontSize="12" Margin="2,10,0,0"
+                               Foreground="{StaticResource ModernSuccessBrush}" />
                 </StackPanel>
             </Border>
         </Grid>

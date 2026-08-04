@@ -4,7 +4,7 @@
 
 1. 游戏/服务跑在**家里电脑**上  
 2. 用 **SakuraFrp** 把家里某个端口映射到公网  
-3. 人在外面用客户端连 **映射后的地址**，不碰你的云、不用公共 Lagrange 签名  
+3. 人在外面用客户端连 **映射后的地址**，不碰你的云、不碰协议 sign 
 
 ```
 家里 PC（常开、勿休眠）
@@ -139,13 +139,13 @@ GET http://127.0.0.1:8765/backend
 
 ---
 
-## 六、和「云多用户 / Lagrange」的关系
+## 六、和「云多用户」的关系
 
-| 模式 | 谁持号 | 签名 | 出门 |
-|------|--------|------|------|
-| **本机网关 + SakuraFrp（本文）** | 用户家 PC + NapCat | 无公共 token 三号限制 | Frp + 家机常开 |
-| 云 Lagrange 多租户 | 云服务器 | 公共 sign 配额 / 自建 qsign | 云 7×24 |
-| 云多开 NapCat | 云上每用户实例 | 无独立 sign | 云 7×24，贵 |
+| 模式 | 谁持号 | 出门 |
+|------|--------|------|
+| **本机网关 + SakuraFrp（本文）** | 用户家 PC + NapCat | Frp + 家机常开 |
+| 云多租户（后置） | 云服务器 | 云 7×24，见 `MULTI-TENANT.md` |
+| 云多开 NapCat | 云上每用户实例 | 云 7×24，贵 |
 
 当前产品主推：**MC 开服式本机网关 + 樱花映射 8765**。
 
@@ -155,8 +155,8 @@ GET http://127.0.0.1:8765/backend
 
 | 路径 | 用途 |
 |------|------|
-| `tools/start-user-gateway.ps1` | 本机以 napcat 后端启动 RealServer |
-| `tools/start-server-napcat.ps1` | 同上（开发用，参数可调） |
+| `server/tools/start-user-gateway.ps1` | 本机以 napcat 后端启动 RealServer |
+| `server/tools/start-server-napcat.ps1` | 同上（开发用，参数可调） |
 | `server/.../appsettings.json` | `Backend: napcat`，`Mode: localGateway` |
 | `docs/BACKEND-SWITCH.md` | 后端切换说明 |
 | `docs/MULTI-TENANT.md` | 云多租户（另一路线，非本文） |

@@ -4,8 +4,12 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Visibility="Collapsed">
 
-    <Border x:Name="Bar" Background="{StaticResource MetroPanelBrush}" CornerRadius="4"
-            Margin="12,10,12,0" Height="64" VerticalAlignment="Top"
+    <Border x:Name="Bar"
+            Background="{StaticResource MetroPanelBrush}"
+            BorderBrush="{StaticResource ModernHairlineBrush}"
+            BorderThickness="1"
+            CornerRadius="14"
+            Margin="0" Height="64" VerticalAlignment="Top"
             Tapped="Bar_Tapped">
         <Grid Margin="12,0,14,0">
             <Grid.ColumnDefinitions>
@@ -13,20 +17,19 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- 方形头像 -->
-            <Rectangle Grid.Column="0" Width="44" Height="44" VerticalAlignment="Center">
-                <Rectangle.Fill>
+            <Ellipse Grid.Column="0" Width="42" Height="42" VerticalAlignment="Center">
+                <Ellipse.Fill>
                     <ImageBrush x:Name="AvatarBrush" Stretch="UniformToFill" />
-                </Rectangle.Fill>
-            </Rectangle>
+                </Ellipse.Fill>
+            </Ellipse>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
-                <TextBlock x:Name="TitleText" FontSize="16" FontWeight="SemiBold"
+                <TextBlock x:Name="TitleText" FontSize="14" FontWeight="SemiBold"
                            Foreground="{StaticResource MetroPrimaryTextBrush}"
                            TextTrimming="CharacterEllipsis" />
-                <TextBlock x:Name="PreviewText" FontSize="13" FontWeight="Light"
+                <TextBlock x:Name="PreviewText" FontSize="12"
                            Foreground="{StaticResource MetroSecondaryTextBrush}"
-                           TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                           TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
             </StackPanel>
         </Grid>
     </Border>

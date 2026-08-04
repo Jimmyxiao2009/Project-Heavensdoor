@@ -12,28 +12,27 @@
         <CollectionViewSource x:Name="ResultsSource" IsSourceGrouped="True"
                               Source="{Binding Sections}" ItemsPath="Items" />
 
-        <!-- 搜索结果行 -->
         <DataTemplate x:Key="SearchResultTemplate" x:DataType="models:SearchResult">
-            <Grid Height="68" Margin="0,0,20,0">
+            <Grid Height="68" Padding="4,0,4,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Rectangle Grid.Column="0" Width="48" Height="48" VerticalAlignment="Center">
-                    <Rectangle.Fill>
+                <Ellipse Grid.Column="0" Width="46" Height="46" VerticalAlignment="Center">
+                    <Ellipse.Fill>
                         <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
-                    </Rectangle.Fill>
-                </Rectangle>
+                    </Ellipse.Fill>
+                </Ellipse>
 
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,8,0">
-                    <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiLight"
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,8,0">
+                    <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold"
                                Foreground="{StaticResource MetroPrimaryTextBrush}"
                                TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{Binding Subtitle}" FontSize="12"
                                Foreground="{StaticResource MetroSecondaryTextBrush}"
-                               TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                               TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
@@ -41,9 +40,11 @@
                                Foreground="{StaticResource MetroSecondaryTextBrush}"
                                HorizontalAlignment="Right"
                                Visibility="{Binding HasTime, Converter={StaticResource BoolToVisibility}}" />
-                    <TextBlock Text="{Binding Kind, Converter={StaticResource KindToTag}}" FontSize="11"
-                               Foreground="{StaticResource MetroSubtleBrush}"
-                               HorizontalAlignment="Right" Margin="0,4,0,0" />
+                    <Border Background="{StaticResource ModernElevatedBrush}" CornerRadius="8" Padding="8,3" Margin="0,4,0,0"
+                            HorizontalAlignment="Right">
+                        <TextBlock Text="{Binding Kind, Converter={StaticResource KindToTag}}" FontSize="10"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                    </Border>
                 </StackPanel>
             </Grid>
         </DataTemplate>
@@ -63,44 +64,43 @@
         </Style>
     </Page.Resources>
 
-    <Grid Margin="0,0,0,0">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 标题头部 -->
-        <Grid Grid.Row="0" Margin="24,12,16,4">
+        <Grid Grid.Row="0" Height="52" Background="{StaticResource MetroChromeBrush}"
+              BorderBrush="{StaticResource ModernHairlineBrush}" BorderThickness="0,0,0,1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="搜索" FontSize="13" CharacterSpacing="40"
-                       VerticalAlignment="Center"
-                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+            <TextBlock Grid.Column="0" Text="搜索" Style="{StaticResource ModernHeaderTitleStyle}" Margin="16,0,0,0" />
             <Button Grid.Column="1" x:Name="CancelButton" Click="CancelButton_Click"
-                    Background="Transparent" BorderThickness="0" Padding="10,6"
-                    Foreground="{StaticResource MetroSecondaryTextBrush}" FontSize="15" Content="取消" />
+                    Style="{StaticResource ModernGhostButtonStyle}" Content="取消" Margin="0,0,8,0" />
         </Grid>
 
-        <!-- 搜索框 -->
-        <Grid Grid.Row="1" Margin="24,4,16,8" Background="{StaticResource MetroPanelBrush}" MinHeight="48">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <FontIcon FontFamily="Segoe MDL2 Assets" Grid.Column="0" Glyph="&#xE721;" FontSize="18" VerticalAlignment="Center" Margin="12,0,4,0" />
-            <TextBox Grid.Column="1" x:Name="SearchBox"
-                     Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                     PlaceholderText="搜索联系人、群、聊天记录"
-                     Background="Transparent" BorderThickness="0"
-                     FontSize="18" FontWeight="Light"
-                     Foreground="{StaticResource MetroPrimaryTextBrush}"
-                     VerticalAlignment="Center" Margin="2,0,8,0" />
-        </Grid>
+        <Border Grid.Row="1" Style="{StaticResource ModernSearchBarStyle}" Margin="12,10,12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <FontIcon FontFamily="Segoe MDL2 Assets" Grid.Column="0" Glyph="&#xE721;" FontSize="15"
+                          VerticalAlignment="Center" Margin="0,0,8,0"
+                          Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                <TextBox Grid.Column="1" x:Name="SearchBox"
+                         Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         PlaceholderText="搜索联系人、群、聊天记录"
+                         Background="Transparent" BorderThickness="0"
+                         FontSize="15"
+                         Foreground="{StaticResource MetroPrimaryTextBrush}"
+                         VerticalAlignment="Center" />
+            </Grid>
+        </Border>
 
-        <!-- 结果 / 空状态 / 提示 -->
         <Grid Grid.Row="2">
             <ListView x:Name="ResultsList"
                       ItemsSource="{Binding Source={StaticResource ResultsSource}}"
@@ -108,14 +108,14 @@
                       Style="{StaticResource SearchListStyle}"
                       IsItemClickEnabled="True" SelectionMode="None"
                       ItemClick="ResultsList_ItemClick"
-                      Padding="24,0,0,8"
+                      Padding="14,0,14,12"
                       Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
                 <ListView.GroupStyle>
                     <GroupStyle>
                         <GroupStyle.HeaderTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Header}" FontSize="15" FontWeight="SemiLight"
-                                           CharacterSpacing="40" Margin="0,18,0,6"
+                                <TextBlock Text="{Binding Header}" FontSize="12" FontWeight="SemiBold"
+                                           Margin="4,16,0,6"
                                            Foreground="{StaticResource MetroAccentBrush}" />
                             </DataTemplate>
                         </GroupStyle.HeaderTemplate>
@@ -123,22 +123,32 @@
                 </ListView.GroupStyle>
             </ListView>
 
-            <!-- 无匹配结果 -->
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                         Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock Text="无匹配结果" FontSize="20" FontWeight="Light"
+                <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource ModernElevatedBrush}"
+                        HorizontalAlignment="Center" Margin="0,0,0,12">
+                    <FontIcon Glyph="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                              Foreground="{StaticResource MetroSecondaryTextBrush}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="无匹配结果" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource MetroPrimaryTextBrush}" HorizontalAlignment="Center" />
+                <TextBlock Text="换个关键词试试" FontSize="13" Margin="0,6,0,0"
                            Foreground="{StaticResource MetroSecondaryTextBrush}" HorizontalAlignment="Center" />
-                <TextBlock Text="换个关键词试试" FontSize="13" Margin="0,8,0,0"
-                           Foreground="{StaticResource MetroSubtleBrush}" HorizontalAlignment="Center" />
             </StackPanel>
 
-            <!-- 空闲提示 -->
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                         Visibility="{Binding ShowHint, Converter={StaticResource BoolToVisibility}}">
-                <TextBlock Text="搜索点什么吧" FontSize="20" FontWeight="Light"
+                <Border Width="56" Height="56" CornerRadius="28" Background="{StaticResource ModernAccentSoftBrush}"
+                        HorizontalAlignment="Center" Margin="0,0,0,12">
+                    <FontIcon Glyph="&#xE721;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                              Foreground="{StaticResource MetroAccentBrush}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Text="搜索点什么吧" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource MetroPrimaryTextBrush}" HorizontalAlignment="Center" />
+                <TextBlock Text="联系人 · 群聊 · 聊天记录" FontSize="13" Margin="0,6,0,0"
                            Foreground="{StaticResource MetroSecondaryTextBrush}" HorizontalAlignment="Center" />
-                <TextBlock Text="联系人 · 群聊 · 聊天记录" FontSize="13" Margin="0,8,0,0"
-                           Foreground="{StaticResource MetroSubtleBrush}" HorizontalAlignment="Center" />
             </StackPanel>
         </Grid>
     </Grid>

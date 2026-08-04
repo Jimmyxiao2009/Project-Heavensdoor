@@ -107,14 +107,14 @@ namespace QQReborn.App.ViewModels
             _detached = false;
             _chat.MessageReceived -= OnMessageReceived;
             _chat.MessageReceived += OnMessageReceived;
-            if (_chat is RemoteChatService remoteFlags)
+            if (_chat is IGatewayService remoteFlags)
             {
                 remoteFlags.ConversationFlagsChanged -= OnConversationFlagsChanged;
                 remoteFlags.ConversationFlagsChanged += OnConversationFlagsChanged;
                 remoteFlags.ConversationRead -= OnConversationRead;
                 remoteFlags.ConversationRead += OnConversationRead;
             }
-            if (_chat is RemoteChatService remote)
+            if (_chat is IGatewayService remote)
             {
                 remote.Reconnected -= OnReconnected;
                 remote.Reconnected += OnReconnected;
@@ -124,11 +124,10 @@ namespace QQReborn.App.ViewModels
 
             try
             {
-                // NapCat path: bind the PC-side logged-in account so conversation lists
-                // and send work without requiring a separate "登录 QQ" QR step.
-                if (_chat is RemoteChatService remoteBind)
+                // Bind the PC-side NapCat account so lists/send work without a QR step.
+                if (_chat is IGatewayService remoteBind)
                 {
-                    try { await remoteBind.ConfigureAccountAsync("", "", ""); }
+                    try { await remoteBind.ConfigureAccountAsync(); }
                     catch { /* surfaced on getSelf if still broken */ }
                 }
 
@@ -188,14 +187,14 @@ namespace QQReborn.App.ViewModels
             _detached = false;
             _chat.MessageReceived -= OnMessageReceived;
             _chat.MessageReceived += OnMessageReceived;
-            if (_chat is RemoteChatService remoteFlags)
+            if (_chat is IGatewayService remoteFlags)
             {
                 remoteFlags.ConversationFlagsChanged -= OnConversationFlagsChanged;
                 remoteFlags.ConversationFlagsChanged += OnConversationFlagsChanged;
                 remoteFlags.ConversationRead -= OnConversationRead;
                 remoteFlags.ConversationRead += OnConversationRead;
             }
-            if (_chat is RemoteChatService remote)
+            if (_chat is IGatewayService remote)
             {
                 remote.Reconnected -= OnReconnected;
                 remote.Reconnected += OnReconnected;
@@ -208,7 +207,7 @@ namespace QQReborn.App.ViewModels
         {
             _detached = true;
             _chat.MessageReceived -= OnMessageReceived;
-            if (_chat is RemoteChatService remote)
+            if (_chat is IGatewayService remote)
             {
                 remote.Reconnected -= OnReconnected;
                 remote.ConversationFlagsChanged -= OnConversationFlagsChanged;
