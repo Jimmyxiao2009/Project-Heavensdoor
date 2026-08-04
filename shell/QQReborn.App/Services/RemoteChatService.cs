@@ -764,7 +764,9 @@ namespace QQReborn.App.Services
             }
             else if (type == "sessionDataUpdated")
             {
-                RunOnUi(() => SessionDataUpdated?.Invoke(this, EventArgs.Empty));
+                // Low: list rebuilds must not starve navigation/touch when populate finishes.
+                RunOnUi(() => SessionDataUpdated?.Invoke(this, EventArgs.Empty),
+                    Windows.UI.Core.CoreDispatcherPriority.Low);
             }
             else if (type == "spaceFeedUpdated")
             {
@@ -772,20 +774,36 @@ namespace QQReborn.App.Services
                 // Parse hasMore from push data so the VM can show/hide "load more" button.
                 if (data != null && data.ContainsKey("hasMore"))
                     SpaceFeedHasMore = data.GetNamedBoolean("hasMore", true);
-                RunOnUi(() => SpaceFeedUpdated?.Invoke(this, EventArgs.Empty));
+                RunOnUi(() => SpaceFeedUpdated?.Invoke(this, EventArgs.Empty),
+                    Windows.UI.Core.CoreDispatcherPriority.Low);
             }
         }
 
-        private void RunOnUi(Action action)
+        private void RunOnUi(
+            Action action,
+            Windows.UI.Core.CoreDispatcherPriority priority = Windows.UI.Core.CoreDispatcherPriority.Normal)
         {
+            if (action == null) return;
             var d = _dispatcher;
+            // Always wrap: a throwing event handler on the UI thread would tear down the
+            // process via the unhandled exception path (especially sessionDataUpdated /
+            // MessageReceived fan-out into MainViewModel list rebuilds).
+            void Safe()
+            {
+                try { action(); }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine("RunOnUi handler: " + ex);
+                }
+            }
+
             if (d != null && !d.HasThreadAccess)
             {
-                var ignore = d.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () => action());
+                var ignore = d.RunAsync(priority, Safe);
             }
             else
             {
-                action();
+                Safe();
             }
         }
 
@@ -963,6 +981,7 @@ namespace QQReborn.App.Services
                     {
                         Uin = (long)o.GetNamedNumber("uin", 0),
                         Name = Str(o, "name"),
+                        Remark = Str(o, "remark"),
                         AvatarPath = Str(o, "avatarPath"),
                         Signature = Str(o, "signature"),
                         Online = o.GetNamedBoolean("online", false),
@@ -1303,6 +1322,25 @@ namespace QQReborn.App.Services
             request.Handled = data.GetNamedBoolean("handled", false);
         }
 
+        public async Task RejectFriendRequestAsync(FriendRequest request)
+        {
+            if (request == null) return;
+            var data = JsonObject.Parse(await RequestAsync("rejectFriendRequest",
+                r => r["uin"] = JsonValue.CreateNumberValue(request.Uin)));
+            request.Handled = data.GetNamedBoolean("handled", false);
+        }
+
+        /// <summary>给好友 QQ 名片点赞（每天上限 10 次）</summary>
+        public async Task<bool> SendLikeAsync(long targetUin, int count = 1)
+        {
+            var data = JsonObject.Parse(await RequestAsync("sendLike", r =>
+            {
+                r["targetUin"] = JsonValue.CreateNumberValue(targetUin);
+                r["count"] = JsonValue.CreateNumberValue(count);
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
         /// <summary>Fetches full profile detail for an arbitrary user (contact-detail page etc).
         /// signature/gender/country/city may come back as JSON null from the server, hence the
         /// null-safe Str() helper rather than GetNamedString.</summary>
@@ -1413,6 +1451,373 @@ namespace QQReborn.App.Services
             return data.GetNamedBoolean("set", false);
         }
 
+        /// <summary>设置群管理员</summary>
+        public async Task<bool> SetGroupAdminAsync(string conversationId, long targetUin, bool enable)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setGroupAdmin", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["targetUin"] = JsonValue.CreateNumberValue(targetUin);
+                r["enable"] = JsonValue.CreateBooleanValue(enable);
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>群组单人禁言</summary>
+        public async Task<bool> SetGroupBanAsync(string conversationId, long targetUin, int durationSeconds)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setGroupBan", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["targetUin"] = JsonValue.CreateNumberValue(targetUin);
+                r["duration"] = JsonValue.CreateNumberValue(durationSeconds);
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>群组全员禁言</summary>
+        public async Task<bool> SetGroupWholeBanAsync(string conversationId, bool enable)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setGroupWholeBan", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["enable"] = JsonValue.CreateBooleanValue(enable);
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>踢出群成员</summary>
+        public async Task<bool> SetGroupKickAsync(string conversationId, long targetUin, bool rejectAddRequest = false)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setGroupKick", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["targetUin"] = JsonValue.CreateNumberValue(targetUin);
+                r["rejectAddRequest"] = JsonValue.CreateBooleanValue(rejectAddRequest);
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>设置好友备注 — NapCat set_friend_remark</summary>
+        public async Task<bool> SetFriendRemarkAsync(long uin, string remark)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setFriendRemark", r =>
+            {
+                r["uin"] = JsonValue.CreateNumberValue(uin);
+                r["remark"] = JsonValue.CreateStringValue(remark ?? "");
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>删除好友 — NapCat delete_friend</summary>
+        public async Task<bool> DeleteFriendAsync(long uin, bool tempBlock = false, bool bothDel = false)
+        {
+            var data = JsonObject.Parse(await RequestAsync("deleteFriend", r =>
+            {
+                r["uin"] = JsonValue.CreateNumberValue(uin);
+                r["tempBlock"] = JsonValue.CreateBooleanValue(tempBlock);
+                r["bothDel"] = JsonValue.CreateBooleanValue(bothDel);
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>修改自己的昵称/签名 — set_qq_profile / set_self_longnick</summary>
+        public async Task<bool> SetSelfProfileAsync(string nickname = null, string signature = null)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setSelfProfile", r =>
+            {
+                if (nickname != null) r["nickname"] = JsonValue.CreateStringValue(nickname);
+                if (signature != null) r["signature"] = JsonValue.CreateStringValue(signature);
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>设置在线状态 — NapCat set_online_status
+        /// 常用: 在线10 / 离开30 / 隐身40 / 忙碌50 / 请勿打扰70</summary>
+        public async Task<bool> SetOnlineStatusAsync(int status, int extStatus = 0, int batteryStatus = 0)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setOnlineStatus", r =>
+            {
+                r["status"] = JsonValue.CreateNumberValue(status);
+                r["extStatus"] = JsonValue.CreateNumberValue(extStatus);
+                r["batteryStatus"] = JsonValue.CreateNumberValue(batteryStatus);
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>获取群公告列表 — NapCat _get_group_notice</summary>
+        public async Task<IReadOnlyList<GroupNoticeItem>> GetGroupNoticesAsync(string conversationId)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getGroupNotices",
+                r => r["conversationId"] = JsonValue.CreateStringValue(conversationId)));
+            var list = new List<GroupNoticeItem>();
+            var arr = data?.GetNamedArray("notices");
+            if (arr == null) return list;
+            foreach (var n in arr)
+            {
+                var o = n.GetObject();
+                list.Add(new GroupNoticeItem
+                {
+                    Id = Str(o, "id"),
+                    Content = Str(o, "content"),
+                    Time = (long)o.GetNamedNumber("time", 0),
+                });
+            }
+            return list;
+        }
+
+        /// <summary>发送群公告 — NapCat _send_group_notice</summary>
+        public async Task<bool> SendGroupNoticeAsync(string conversationId, string content)
+        {
+            var data = JsonObject.Parse(await RequestAsync("sendGroupNotice", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["content"] = JsonValue.CreateStringValue(content ?? "");
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>删除群公告 — NapCat _del_group_notice</summary>
+        public async Task<bool> DeleteGroupNoticeAsync(string conversationId, string noticeId)
+        {
+            var data = JsonObject.Parse(await RequestAsync("deleteGroupNotice", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["noticeId"] = JsonValue.CreateStringValue(noticeId ?? "");
+            }));
+            return data.GetNamedBoolean("ok", false);
+        }
+
+        /// <summary>群文件列表 — get_group_root_files / get_group_files_by_folder</summary>
+        public async Task<GroupFilesResult> GetGroupFilesAsync(string conversationId, string folderId = null)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getGroupFiles", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                if (!string.IsNullOrEmpty(folderId))
+                    r["folderId"] = JsonValue.CreateStringValue(folderId);
+            }));
+            var result = new GroupFilesResult();
+            if (data == null) return result;
+            var folders = data.GetNamedArray("folders");
+            if (folders != null)
+            {
+                foreach (var n in folders)
+                {
+                    var o = n.GetObject();
+                    result.Folders.Add(new GroupFileEntry
+                    {
+                        IsFolder = true,
+                        FolderId = Str(o, "folderId"),
+                        Name = Str(o, "name"),
+                    });
+                }
+            }
+            var files = data.GetNamedArray("files");
+            if (files != null)
+            {
+                foreach (var n in files)
+                {
+                    var o = n.GetObject();
+                    result.Files.Add(new GroupFileEntry
+                    {
+                        IsFolder = false,
+                        FileId = Str(o, "fileId"),
+                        Name = Str(o, "name"),
+                        Size = (long)o.GetNamedNumber("size", 0),
+                        Busid = (int)o.GetNamedNumber("busid", 0),
+                        Uploader = Str(o, "uploader"),
+                    });
+                }
+            }
+            return result;
+        }
+
+        /// <summary>获取群文件下载链接 — get_group_file_url</summary>
+        public async Task<string> GetGroupFileUrlAsync(string conversationId, string fileId, int busid = 0)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getGroupFileUrl", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["fileId"] = JsonValue.CreateStringValue(fileId ?? "");
+                r["busid"] = JsonValue.CreateNumberValue(busid);
+            }));
+            return data != null ? Str(data, "url") : null;
+        }
+
+        public async Task<bool> MarkAllAsReadAsync()
+        {
+            var data = JsonObject.Parse(await RequestAsync("markAllAsRead", null));
+            return data != null && data.GetNamedBoolean("ok", false);
+        }
+
+        public async Task<bool> SetEssenceAsync(string messageId, bool set = true)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setEssence", r =>
+            {
+                r["messageId"] = JsonValue.CreateStringValue(messageId ?? "");
+                r["set"] = JsonValue.CreateBooleanValue(set);
+            }));
+            return data != null && data.GetNamedBoolean("ok", false);
+        }
+
+        public async Task<IReadOnlyList<string>> GetEssenceSummariesAsync(string conversationId)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getEssenceList",
+                r => r["conversationId"] = JsonValue.CreateStringValue(conversationId)));
+            var list = new List<string>();
+            var arr = data?.GetNamedArray("messages");
+            if (arr == null) return list;
+            foreach (var n in arr)
+            {
+                var o = n.GetObject();
+                var who = Str(o, "senderName");
+                var content = Str(o, "content");
+                list.Add(string.IsNullOrEmpty(who) ? content : who + ": " + content);
+            }
+            return list;
+        }
+
+        public async Task<string> GetGroupHonorSummaryAsync(string conversationId)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getGroupHonor",
+                r => r["conversationId"] = JsonValue.CreateStringValue(conversationId)));
+            if (data == null) return "";
+            // Keep raw JSON truncated for display — structure varies by NapCat version.
+            var honor = data.GetNamedValue("honor");
+            return honor != null ? honor.Stringify() : "";
+        }
+
+        public async Task<IReadOnlyList<string>> GetGroupShutListAsync(string conversationId)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getGroupShutList",
+                r => r["conversationId"] = JsonValue.CreateStringValue(conversationId)));
+            var list = new List<string>();
+            var arr = data?.GetNamedArray("members");
+            if (arr == null) return list;
+            foreach (var n in arr)
+            {
+                var o = n.GetObject();
+                var name = Str(o, "name");
+                var uin = (long)o.GetNamedNumber("uin", 0);
+                list.Add(string.IsNullOrEmpty(name) ? uin.ToString() : name + " (" + uin + ")");
+            }
+            return list;
+        }
+
+        public async Task<bool> GroupSignAsync(string conversationId)
+        {
+            var data = JsonObject.Parse(await RequestAsync("groupSign",
+                r => r["conversationId"] = JsonValue.CreateStringValue(conversationId)));
+            return data != null && data.GetNamedBoolean("ok", false);
+        }
+
+        public async Task<bool> SetGroupPortraitAsync(string conversationId, string imageBase64)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setGroupPortrait", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["imageBase64"] = JsonValue.CreateStringValue(imageBase64 ?? "");
+            }, timeoutSeconds: 60));
+            return data != null && data.GetNamedBoolean("ok", false);
+        }
+
+        public async Task<bool> SetGroupRemarkAsync(string conversationId, string remark)
+        {
+            var data = JsonObject.Parse(await RequestAsync("setGroupRemark", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["remark"] = JsonValue.CreateStringValue(remark ?? "");
+            }));
+            return data != null && data.GetNamedBoolean("ok", false);
+        }
+
+        public async Task<bool> CreateGroupFolderAsync(string conversationId, string name)
+        {
+            var data = JsonObject.Parse(await RequestAsync("createGroupFolder", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["name"] = JsonValue.CreateStringValue(name ?? "");
+            }));
+            return data != null && data.GetNamedBoolean("ok", false);
+        }
+
+        public async Task<bool> DeleteGroupFileAsync(string conversationId, string fileId, int busid = 0)
+        {
+            var data = JsonObject.Parse(await RequestAsync("deleteGroupFile", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["fileId"] = JsonValue.CreateStringValue(fileId ?? "");
+                r["busid"] = JsonValue.CreateNumberValue(busid);
+            }));
+            return data != null && data.GetNamedBoolean("ok", false);
+        }
+
+        public async Task<string> FetchPttTextAsync(string messageId)
+        {
+            var data = JsonObject.Parse(await RequestAsync("fetchPttText",
+                r => r["messageId"] = JsonValue.CreateStringValue(messageId ?? ""),
+                timeoutSeconds: 45));
+            return data != null ? Str(data, "text") : null;
+        }
+
+        public async Task<long> GetProfileLikeCountAsync(long uin = 0)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getProfileLike", r =>
+            {
+                if (uin > 0) r["uin"] = JsonValue.CreateNumberValue(uin);
+            }));
+            return data != null ? (long)data.GetNamedNumber("total", 0) : 0;
+        }
+
+        public async Task<string> GetUserStatusTextAsync(long uin)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getUserStatus",
+                r => r["uin"] = JsonValue.CreateNumberValue(uin)));
+            if (data == null) return "";
+            var st = (long)data.GetNamedNumber("status", 0);
+            switch (st)
+            {
+                case 10: return "在线";
+                case 30: return "离开";
+                case 40: return "隐身";
+                case 50: return "忙碌";
+                case 60: return "Q我吧";
+                case 70: return "请勿打扰";
+                default: return st > 0 ? ("状态 " + st) : "";
+            }
+        }
+
+        public async Task<string> GetVersionInfoSummaryAsync()
+        {
+            var data = JsonObject.Parse(await RequestAsync("getVersionInfo", null));
+            if (data == null) return "";
+            var ver = data.GetNamedValue("version");
+            return ver != null ? ver.Stringify() : data.Stringify();
+        }
+
+        public async Task<int> GetGroupAtAllRemainAsync(string conversationId)
+        {
+            var data = JsonObject.Parse(await RequestAsync("getGroupAtAllRemain",
+                r => r["conversationId"] = JsonValue.CreateStringValue(conversationId)));
+            if (data == null) return -1;
+            return (int)data.GetNamedNumber("remain", -1);
+        }
+
+        public async Task<ChatMessage> SendVideoAsync(string conversationId, string videoPath)
+        {
+            var base64 = await EncodeFileBase64Async(videoPath);
+            var data = JsonObject.Parse(await RequestAsync("send", r =>
+            {
+                r["conversationId"] = JsonValue.CreateStringValue(conversationId);
+                r["contentType"] = JsonValue.CreateStringValue("Video");
+                r["fileBase64"] = JsonValue.CreateStringValue(base64);
+                r["fileName"] = JsonValue.CreateStringValue(System.IO.Path.GetFileName(videoPath) ?? "video.mp4");
+                r["voiceSeconds"] = JsonValue.CreateNumberValue(0);
+            }, timeoutSeconds: 120));
+            return ParseMessage(data);
+        }
+
         /// <summary>Uploads a new avatar image (base64-encoded) for the logged-in user. Returns
         /// data.ok as reported by the server.</summary>
         public async Task<bool> SetAvatarAsync(string imageBase64)
@@ -1495,8 +1900,8 @@ namespace QQReborn.App.Services
             var list = new List<Moment>();
             try
             {
-                var raw = forceRefresh
-                    ? await RequestAsync("fetchSpaceFeed", null, timeoutSeconds: 45)
+                var raw = forceRefresh
+                    ? await RequestAsync("fetchSpaceFeed", null, timeoutSeconds: 45)
                     : await RequestAsync("getMoments", null, timeoutSeconds: 45);
                 if (string.IsNullOrEmpty(raw) || raw == "null") return list;
                 var data = JsonObject.Parse(raw);

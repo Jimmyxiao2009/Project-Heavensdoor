@@ -17,7 +17,7 @@
 
                 <Rectangle Grid.Column="0" Width="50" Height="50" VerticalAlignment="Center">
                     <Rectangle.Fill>
-                        <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                        <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                     </Rectangle.Fill>
                 </Rectangle>
 
@@ -30,12 +30,17 @@
                                TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
                 </StackPanel>
 
-                <Button Grid.Column="2" Content="同意" Click="AcceptButton_Click"
-                        VerticalAlignment="Center"
-                        Background="{StaticResource MetroAccentBrush}" Foreground="White"
-                        BorderThickness="0" Padding="16,8" FontSize="14"
-                        Visibility="{Binding NotHandled, Converter={StaticResource BoolToVisibility}}" />
-                <TextBlock Grid.Column="2" Text="已添加" FontSize="14" VerticalAlignment="Center"
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                            Visibility="{Binding NotHandled, Converter={StaticResource BoolToVisibility}}">
+                    <Button Content="拒绝" Click="RejectButton_Click"
+                            Background="{StaticResource MetroPanelBrush}"
+                            Foreground="{StaticResource MetroSecondaryTextBrush}"
+                            BorderThickness="0" Padding="14,8" FontSize="14" Margin="0,0,8,0" />
+                    <Button Content="同意" Click="AcceptButton_Click"
+                            Background="{StaticResource MetroAccentBrush}" Foreground="White"
+                            BorderThickness="0" Padding="16,8" FontSize="14" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="已处理" FontSize="14" VerticalAlignment="Center"
                            Foreground="{StaticResource MetroSecondaryTextBrush}"
                            Visibility="{Binding Handled, Converter={StaticResource BoolToVisibility}}" />
             </Grid>

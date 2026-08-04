@@ -66,7 +66,7 @@ namespace QQReborn.App.Views
                 if (NotificationMuteGate.ShouldSuppressNotification(msg.ConversationId)) return;
 
                 // 仅当当前停留在 MainPage 时才弹横幅。
-                if ((Window.Current.Content as Frame)?.CurrentSourcePageType != typeof(MainPage)) return;
+                if (UiScaleService.GetRootFrame()?.CurrentSourcePageType != typeof(MainPage)) return;
 
                 // 按会话 Id 找到对应会话；找不到则不弹（列表尚未合成时由 toast 侧负责）。
                 var conv = _vm.Conversations.FirstOrDefault(c => c.Id == msg.ConversationId);
@@ -140,6 +140,9 @@ namespace QQReborn.App.Views
             App.ClearRememberedConversation();
             // This method must contain no await. A cached MainPage should return to the
             // frame immediately; all cache/network work is started after navigation.
+            // -= before +=: OnNavigatedTo can re-enter without a matching From in rare
+            // activation paths; never stack duplicate banner handlers on the singleton.
+            App.ChatService.MessageReceived -= OnGlobalMessageReceived;
             App.ChatService.MessageReceived += OnGlobalMessageReceived;
             _vm.Attach();
             _ = LoadHomeInBackgroundAsync();
@@ -282,7 +285,7 @@ namespace QQReborn.App.Views
         }
 
         // Quick panel height must match MainPage.xaml Border Height / initial TranslateY.
-        private const double QuickPanelHeight = 280;
+        private const double QuickPanelHeight = 400;
 
         private void ResetQuickPanelState()
         {
@@ -438,13 +441,21 @@ namespace QQReborn.App.Views
 
         private async void MarkAllRead_Click(object sender, RoutedEventArgs e)
         {
+            var remote = App.ChatService as RemoteChatService;
+            // Prefer NapCat _mark_all_as_read when available; still clear local badges.
+            if (remote != null)
+            {
+                try { await remote.MarkAllAsReadAsync(); }
+                catch { }
+            }
+
             var pending = new List<System.Threading.Tasks.Task>();
             foreach (var c in _vm.Conversations)
             {
                 if (c == null || string.IsNullOrEmpty(c.Id)) continue;
                 c.Unread = 0;
                 UnreadBadgeStore.Clear(c.Id);
-                if (App.ChatService is RemoteChatService remote)
+                if (remote != null)
                     pending.Add(MarkReadSafeAsync(remote, c.Id));
             }
 
@@ -466,6 +477,107 @@ namespace QQReborn.App.Views
         private void Files_Click(object sender, RoutedEventArgs e)
         {
             Frame.Navigate(typeof(ProfilePlaceholderPage), "files");
+        }
+
+        private async void QuickStatus_Click(object sender, RoutedEventArgs e)
+        {
+            var remote = App.ChatService as RemoteChatService;
+            var combo = new ComboBox
+            {
+                Margin = new Thickness(0, 12, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                SelectedIndex = 0,
+            };
+            combo.Items.Add(new ComboBoxItem { Content = "在线", Tag = OnlineStatus.Online });
+            combo.Items.Add(new ComboBoxItem { Content = "离开", Tag = OnlineStatus.Away });
+            combo.Items.Add(new ComboBoxItem { Content = "忙碌", Tag = OnlineStatus.Busy });
+            combo.Items.Add(new ComboBoxItem { Content = "请勿打扰", Tag = OnlineStatus.DoNotDisturb });
+            combo.Items.Add(new ComboBoxItem { Content = "隐身", Tag = OnlineStatus.Invisible });
+
+            var dialog = new ContentDialog
+            {
+                Title = "在线状态",
+                Content = combo,
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消",
+            };
+
+            ContentDialogResult res;
+            try { res = await dialog.ShowAsync(); }
+            catch { return; }
+            if (res != ContentDialogResult.Primary) return;
+
+            var status = (combo.SelectedItem as ComboBoxItem)?.Tag is OnlineStatus s ? s : OnlineStatus.Online;
+            int st = 10, ext = 0, bat = 0;
+            switch (status)
+            {
+                case OnlineStatus.Away: st = 30; break;
+                case OnlineStatus.Busy: st = 50; break;
+                case OnlineStatus.DoNotDisturb: st = 70; break;
+                case OnlineStatus.Invisible: st = 40; break;
+                default: st = 10; break;
+            }
+
+            if (remote != null)
+            {
+                try
+                {
+                    var ok = await remote.SetOnlineStatusAsync(st, ext, bat);
+                    if (ok && _vm.Self != null) _vm.Self.Status = status;
+                    if (QuickStatusButton != null)
+                        QuickStatusButton.Content = status == OnlineStatus.Online ? "在线状态"
+                            : status == OnlineStatus.Away ? "离开"
+                            : status == OnlineStatus.Busy ? "忙碌"
+                            : status == OnlineStatus.DoNotDisturb ? "勿扰"
+                            : "隐身";
+                }
+                catch { }
+            }
+            else if (_vm.Self != null)
+            {
+                _vm.Self.Status = status;
+            }
+            AnimateQuickPanel(false);
+        }
+
+        private async void QuickSignature_Click(object sender, RoutedEventArgs e)
+        {
+            var remote = App.ChatService as RemoteChatService;
+            var current = _vm.Self?.Signature ?? "";
+            var input = new TextBox
+            {
+                Text = current,
+                PlaceholderText = "写点什么…",
+                Margin = new Thickness(0, 12, 0, 0),
+            };
+            var dialog = new ContentDialog
+            {
+                Title = "个性签名",
+                Content = input,
+                PrimaryButtonText = "保存",
+                CloseButtonText = "取消",
+            };
+
+            ContentDialogResult res;
+            try { res = await dialog.ShowAsync(); }
+            catch { return; }
+            if (res != ContentDialogResult.Primary) return;
+
+            var text = (input.Text ?? "").Trim();
+            if (remote != null)
+            {
+                try
+                {
+                    var ok = await remote.SetSelfProfileAsync(nickname: null, signature: text);
+                    if (ok && _vm.Self != null) _vm.Self.Signature = text;
+                }
+                catch { }
+            }
+            else if (_vm.Self != null)
+            {
+                _vm.Self.Signature = text;
+            }
+            AnimateQuickPanel(false);
         }
 
         // ---- 会话列表 长按 / 右键 菜单 ----

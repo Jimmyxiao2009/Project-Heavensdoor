@@ -56,6 +56,9 @@ namespace QQReborn.App.Services
 
         Task AcceptFriendRequestAsync(FriendRequest request);
 
+        /// <summary>Reject a pending friend request (NapCat set_friend_add_request approve=false).</summary>
+        Task RejectFriendRequestAsync(FriendRequest request);
+
         /// <summary>
         /// Set pin (置顶) and/or mute (消息免打扰) for a conversation. Pass null for a
         /// flag to leave it unchanged. Completes after the bridge accepts the update.

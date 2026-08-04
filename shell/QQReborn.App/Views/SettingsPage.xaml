@@ -81,21 +81,25 @@
                                   VerticalAlignment="Center" />
                 </Grid>
 
-                <!-- 字体大小 -->
-                <Grid Margin="0,12,0,8">
+                <!-- 界面大小：缩放整页（文字 + 头像 + 间距），立即生效 -->
+                <Grid Margin="0,12,0,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="字体大小" FontSize="20" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="界面大小" FontSize="20" FontWeight="Light"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="调整字号与列表密度（不缩放整页，避免卡死/留白）" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,3,0,0" />
+                    </StackPanel>
                     <TextBlock Grid.Column="1" Text="{Binding FontSizeText}" FontSize="14"
                                Foreground="{StaticResource MetroAccentBrush}" VerticalAlignment="Center" />
                 </Grid>
                 <Slider Minimum="0" Maximum="2" StepFrequency="1"
                         TickFrequency="1" TickPlacement="Outside"
                         Value="{Binding FontSizeLevel, Mode=TwoWay}"
-                        Foreground="{StaticResource MetroAccentBrush}" Margin="0,0,0,4" />
+                        Foreground="{StaticResource MetroAccentBrush}" Margin="0,4,0,4" />
                 <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

@@ -265,6 +265,12 @@ namespace QQReborn.App.Services
             return Task.CompletedTask;
         }
 
+        public Task RejectFriendRequestAsync(FriendRequest request)
+        {
+            if (request != null) request.Handled = true;
+            return Task.CompletedTask;
+        }
+
         public Task SetConversationFlagsAsync(string conversationId, bool? isPinned, bool? isMuted)
         {
             var conv = _conversations.FirstOrDefault(c => c.Id == conversationId);

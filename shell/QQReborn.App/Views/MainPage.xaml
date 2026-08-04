@@ -43,9 +43,9 @@
             <Setter Property="VerticalContentAlignment" Value="Center" />
         </Style>
 
-        <!-- Conversation row — square avatar, Metro list rhythm -->
+        <!-- Conversation row — sizes bind to UiScale (no root ScaleTransform). -->
         <DataTemplate x:Key="ConversationItemTemplate" x:DataType="models:ChatConversation">
-            <Grid Height="80" Margin="0,0,19,0"
+            <Grid Height="{Binding ConversationRowHeight, Source={StaticResource UiScale}}" Margin="0,0,19,0"
                   Background="{Binding IsPinned, Converter={StaticResource PinnedRowBrush}}"
                   Holding="Conversation_Holding" RightTapped="Conversation_RightTapped">
                 <Grid.ColumnDefinitions>
@@ -54,33 +54,39 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <Grid Grid.Column="0" VerticalAlignment="Center">
-                    <Rectangle Width="58" Height="58">
+                    <Rectangle Width="{Binding ConversationAvatar, Source={StaticResource UiScale}}"
+                               Height="{Binding ConversationAvatar, Source={StaticResource UiScale}}">
                         <Rectangle.Fill>
-                            <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                            <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                         </Rectangle.Fill>
                     </Rectangle>
-                    <Border Background="{StaticResource MetroAccentBrush}" MinWidth="20" Height="20"
-                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-6,0" Padding="5,0"
+                    <Border Background="{StaticResource MetroAccentBrush}" MinWidth="18" Height="18"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-6,0" Padding="4,0"
                             Visibility="{Binding HasUnread, Converter={StaticResource BoolToVisibility}}">
                         <Grid>
-                            <TextBlock Text="{Binding UnreadText}" Foreground="White" FontSize="11"
+                            <TextBlock Text="{Binding UnreadText}" Foreground="White"
+                                       FontSize="{Binding UnreadBadge, Source={StaticResource UiScale}}"
                                        HorizontalAlignment="Center" VerticalAlignment="Center" />
                             <Border Background="#99000000"
                                     Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibility}}" />
                         </Grid>
                     </Border>
                 </Grid>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,10,0">
-                    <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiLight"
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,8,0">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiLight"
+                               FontSize="{Binding ListTitle, Source={StaticResource UiScale}}"
                                Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding PreviewDisplay}" FontSize="13"
+                    <TextBlock Text="{Binding PreviewDisplay}"
+                               FontSize="{Binding ListPreview, Source={StaticResource UiScale}}"
                                Foreground="{StaticResource MetroSecondaryTextBrush}"
-                               TextTrimming="CharacterEllipsis" Margin="0,5,0,0" />
+                               TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" VerticalAlignment="Top" Margin="0,8,0,0" HorizontalAlignment="Right">
-                    <TextBlock Text="{Binding LastTimeText}" FontSize="12"
+                <StackPanel Grid.Column="2" VerticalAlignment="Top" Margin="0,6,0,0" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding LastTimeText}"
+                               FontSize="{Binding ListTime, Source={StaticResource UiScale}}"
                                Foreground="{StaticResource MetroSecondaryTextBrush}" HorizontalAlignment="Right" />
-                    <FontIcon Glyph="&#xE74F;" FontSize="12" FontFamily="Segoe MDL2 Assets"
+                    <FontIcon Glyph="&#xE74F;" FontFamily="Segoe MDL2 Assets"
+                              FontSize="{Binding ListTime, Source={StaticResource UiScale}}"
                               HorizontalAlignment="Right" Margin="0,6,0,0"
                               Foreground="{StaticResource MetroSecondaryTextBrush}"
                               Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibility}}" />
@@ -90,27 +96,30 @@
 
         <!-- Contact row -->
         <DataTemplate x:Key="ContactItemTemplate" x:DataType="models:Contact">
-            <Grid Height="72" Margin="0,0,19,0">
+            <Grid Height="{Binding ContactRowHeight, Source={StaticResource UiScale}}" Margin="0,0,19,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid Grid.Column="0" VerticalAlignment="Center">
-                    <Rectangle Width="52" Height="52">
+                    <Rectangle Width="{Binding ContactAvatar, Source={StaticResource UiScale}}"
+                               Height="{Binding ContactAvatar, Source={StaticResource UiScale}}">
                         <Rectangle.Fill>
-                            <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                            <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                         </Rectangle.Fill>
                     </Rectangle>
-                    <Rectangle Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                    <Rectangle Width="10" Height="10" HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                Margin="0,0,-2,-2" Fill="{StaticResource MetroAccentBrush}"
                                Visibility="{Binding Online, Converter={StaticResource BoolToVisibility}}" />
                 </Grid>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
-                    <TextBlock Text="{Binding Name}" FontSize="19" FontWeight="SemiLight"
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiLight"
+                               FontSize="{Binding ListTitle, Source={StaticResource UiScale}}"
                                Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding Signature}" FontSize="12"
+                    <TextBlock Text="{Binding Signature}"
+                               FontSize="{Binding ListPreview, Source={StaticResource UiScale}}"
                                Foreground="{StaticResource MetroSecondaryTextBrush}"
-                               TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                               TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
                 </StackPanel>
             </Grid>
         </DataTemplate>
@@ -147,8 +156,10 @@
                         HorizontalAlignment="Left" HorizontalContentAlignment="Left"
                         VerticalAlignment="Top" VerticalContentAlignment="Top">
                     <StackPanel>
-                        <TextBlock Text="QQ REBORN" Style="{StaticResource MetroPageTitleStyle}" />
-                        <TextBlock Text="qq" Style="{StaticResource MetroPanoramaTitleStyle}" Margin="0,-4,0,0" />
+                        <TextBlock Text="QQ REBORN" Style="{StaticResource MetroPageTitleStyle}"
+                                   FontSize="{Binding PageTitle, Source={StaticResource UiScale}}" />
+                        <TextBlock Text="qq" Style="{StaticResource MetroPanoramaTitleStyle}" Margin="0,-4,0,0"
+                                   FontSize="{Binding PanoramaTitle, Source={StaticResource UiScale}}" />
                     </StackPanel>
                 </Button>
             </Grid>
@@ -339,12 +350,12 @@
 
         <!-- Drop-down Metro tiles (classic WP quick actions) -->
         <Border x:Name="QuickPanel"
-                VerticalAlignment="Top" Height="280" Margin="12,0,12,0"
+                VerticalAlignment="Top" Height="400" Margin="12,0,12,0"
                 Background="{StaticResource MetroChromeBrush}"
                 RenderTransformOrigin="0.5,0" Visibility="Collapsed"
                 Tapped="QuickPanel_Tapped" PointerPressed="QuickPanel_PointerPressed">
             <Border.RenderTransform>
-                <CompositeTransform TranslateY="-280" />
+                <CompositeTransform TranslateY="-400" />
             </Border.RenderTransform>
             <Grid Padding="14,16,14,12">
                 <Grid.RowDefinitions>
@@ -361,6 +372,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -372,13 +384,19 @@
                     <Button Grid.Row="0" Grid.Column="1" Margin="6,0,0,6"
                             Style="{StaticResource MetroTileSecondaryButtonStyle}"
                             Content="全部免打扰" Click="MuteAll_Click" />
-                    <Button Grid.Row="1" Grid.Column="0" Margin="0,6,6,0"
+                    <Button Grid.Row="1" Grid.Column="0" Margin="0,6,6,6"
                             Style="{StaticResource MetroTileSecondaryButtonStyle}"
                             Content="恢复通知" Click="UnmuteAll_Click" />
-                    <Button Grid.Row="1" Grid.Column="1" Margin="6,6,0,0"
+                    <Button Grid.Row="1" Grid.Column="1" Margin="6,6,0,6"
                             Style="{StaticResource MetroTileButtonStyle}"
                             Background="{StaticResource MetroAccentDarkBrush}"
                             Content="文件" Click="Files_Click" />
+                    <Button Grid.Row="2" Grid.Column="0" x:Name="QuickStatusButton" Margin="0,6,6,0"
+                            Style="{StaticResource MetroTileSecondaryButtonStyle}"
+                            Content="在线状态" Click="QuickStatus_Click" />
+                    <Button Grid.Row="2" Grid.Column="1" Margin="6,6,0,0"
+                            Style="{StaticResource MetroTileButtonStyle}"
+                            Content="个性签名" Click="QuickSignature_Click" />
                 </Grid>
             </Grid>
         </Border>

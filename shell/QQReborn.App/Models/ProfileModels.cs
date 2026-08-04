@@ -15,7 +15,8 @@ namespace QQReborn.App.Models
         public bool Notifications { get; set; } = true;
         public bool EnterToSend { get; set; } = true;
 
-        /// <summary>0 = 小, 1 = 标准, 2 = 大.</summary>
+        /// <summary>界面大小：0 = 小 (≈82%), 1 = 标准 (100%), 2 = 大 (≈112%).
+        /// Applied app-wide via <c>UiScaleService</c>.</summary>
         public int FontSizeLevel { get; set; } = 1;
 
         /// <summary>Host of the fake/real server (no scheme/port); "localhost" on desktop,

@@ -22,15 +22,16 @@
                 <Rectangle x:Name="AvatarRect" Grid.Column="1" Width="88" Height="88"
                            VerticalAlignment="Top" Tapped="AvatarRect_Tapped">
                     <Rectangle.Fill>
-                        <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                        <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                     </Rectangle.Fill>
                 </Rectangle>
                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="16,0,0,0">
                     <TextBlock Text="{Binding Nickname}" FontSize="28" FontWeight="Light"
-                               Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" TextTrimming="CharacterEllipsis"
+                               Tapped="Nickname_Tapped" />
 
                     <StackPanel x:Name="StatusRow" Orientation="Horizontal" Background="Transparent"
-                                Margin="0,6,0,0" HorizontalAlignment="Left">
+                                Margin="0,6,0,0" HorizontalAlignment="Left" Tapped="StatusRow_Tapped">
                         <Ellipse x:Name="StatusDot" Width="10" Height="10" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding Self.StatusText}" FontSize="13" FontWeight="SemiLight"
                                    Foreground="{StaticResource MetroSecondaryTextBrush}"
@@ -44,7 +45,8 @@
                                Foreground="{StaticResource MetroSecondaryTextBrush}" Margin="0,5,0,0" />
                     <TextBlock Text="{Binding Signature}" FontSize="13"
                                Foreground="{StaticResource MetroSecondaryTextBrush}"
-                               TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                               TextTrimming="CharacterEllipsis" Margin="0,4,0,0"
+                               Tapped="Signature_Tapped" />
                 </StackPanel>
             </Grid>
             </Border>

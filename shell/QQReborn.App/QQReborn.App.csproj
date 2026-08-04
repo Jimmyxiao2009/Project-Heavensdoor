@@ -115,6 +115,7 @@
     <Compile Include="Models\**\*.cs" />
     <Compile Include="Services\**\*.cs" />
     <Compile Include="ViewModels\**\*.cs" />
+    <Compile Include="Converters\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\**\*.png" />

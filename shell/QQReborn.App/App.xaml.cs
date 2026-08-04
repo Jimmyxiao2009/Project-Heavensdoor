@@ -160,30 +160,36 @@ namespace QQReborn.App
                 }
             }
 
-            try
+            // Prefer wire metadata. Only hit disk cache when title/avatar are still empty —
+            // LoadAsync on every toast was measurable jank under message bursts on phone.
+            bool needCache = string.IsNullOrEmpty(title)
+                || (isGroupPush && string.IsNullOrEmpty(msg.ConversationAvatarPath) && string.IsNullOrEmpty(avatar))
+                || (!isGroupPush && string.IsNullOrEmpty(avatar));
+            if (needCache)
             {
-                // Local conversation cache can fill title/avatar when the push arrived
-                // before Populate finished, or for older gateways without conversation*.
-                var convs = await ConversationCache.LoadAsync();
-                foreach (var c in convs)
+                try
                 {
-                    if (c == null || c.Id != msg.ConversationId) continue;
-                    var group = c.Kind == Models.ConversationKind.Group || isGroupPush;
-                    if (group)
+                    var convs = await ConversationCache.LoadAsync();
+                    foreach (var c in convs)
                     {
-                        if (!string.IsNullOrEmpty(c.Title)) title = c.Title;
-                        content = string.IsNullOrEmpty(msg.SenderName) ? preview : (msg.SenderName + ": " + preview);
-                        if (!string.IsNullOrEmpty(c.AvatarPath)) avatar = c.AvatarPath;
+                        if (c == null || c.Id != msg.ConversationId) continue;
+                        var group = c.Kind == Models.ConversationKind.Group || isGroupPush;
+                        if (group)
+                        {
+                            if (!string.IsNullOrEmpty(c.Title)) title = c.Title;
+                            content = string.IsNullOrEmpty(msg.SenderName) ? preview : (msg.SenderName + ": " + preview);
+                            if (!string.IsNullOrEmpty(c.AvatarPath)) avatar = c.AvatarPath;
+                        }
+                        else
+                        {
+                            if (!string.IsNullOrEmpty(c.Title)) title = c.Title;
+                            if (!string.IsNullOrEmpty(c.AvatarPath)) avatar = c.AvatarPath;
+                        }
+                        break;
                     }
-                    else
-                    {
-                        if (!string.IsNullOrEmpty(c.Title)) title = c.Title;
-                        if (!string.IsNullOrEmpty(c.AvatarPath)) avatar = c.AvatarPath;
-                    }
-                    break;
                 }
+                catch { }
             }
-            catch { }
 
             // Friend fallback: if still no avatar, use sender avatar / qlogo.
             if (!isGroupPush && string.IsNullOrEmpty(avatar))
@@ -243,12 +249,17 @@ namespace QQReborn.App
 
         protected override void OnLaunched(LaunchActivatedEventArgs e)
         {
+            // Plain Frame as Window.Content — never wrap/scale the root. Root ScaleTransform
+            // freezes MainPage (Pivot measure loop) and left white bars on phone.
             if (!(Window.Current.Content is Frame rootFrame))
             {
                 rootFrame = new Frame();
                 rootFrame.NavigationFailed += OnNavigationFailed;
                 Window.Current.Content = rootFrame;
             }
+
+            // Density tokens only (bindable sizes); no layout transform.
+            UiScaleService.ApplyFromSettings();
 
             if (!_backHandlerRegistered)
             {

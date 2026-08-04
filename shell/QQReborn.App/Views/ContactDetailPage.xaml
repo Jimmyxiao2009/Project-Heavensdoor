@@ -38,7 +38,7 @@
                     </Grid.ColumnDefinitions>
                     <Rectangle Grid.Column="0" Width="96" Height="96" VerticalAlignment="Top">
                         <Rectangle.Fill>
-                            <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                            <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                         </Rectangle.Fill>
                     </Rectangle>
                     <StackPanel Grid.Column="1" Margin="16,2,0,0" VerticalAlignment="Top">
@@ -92,15 +92,48 @@
                                        HorizontalAlignment="Right"
                                        Foreground="{StaticResource MetroPrimaryTextBrush}" />
                         </Grid>
+                        <Grid Margin="0,10,0,0" Tapped="RemarkRow_Tapped">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="备注" FontSize="14" FontWeight="Light"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                            <TextBlock Grid.Column="1" x:Name="RemarkText" Text="" FontSize="14" FontWeight="Light"
+                                       HorizontalAlignment="Right" Margin="12,0,8,0"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                            <TextBlock Grid.Column="2" Text="&#x270E;" FontSize="16"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                        </Grid>
                     </StackPanel>
                 </Border>
+
+                <Button Content="删除好友" Click="DeleteFriend_Click"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Background="{StaticResource MetroPanelBrush}"
+                        Foreground="{StaticResource MetroDangerBrush}"
+                        BorderThickness="0" Padding="0,14" FontSize="15" Margin="0,16,0,0" />
 
             </StackPanel>
         </ScrollViewer>
 
         <!-- 底部操作 -->
         <Grid Grid.Row="2" Background="{StaticResource MetroPanelBrush}" Padding="20,12" Margin="0,8,0,0">
-            <Button x:Name="MessageButton" Content="发消息"
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" x:Name="LikeButton" Content="赞一下"
+                    Click="LikeButton_Click"
+                    Background="{StaticResource MetroPanelBrush}"
+                    Foreground="{StaticResource MetroAccentBrush}"
+                    BorderBrush="{StaticResource MetroAccentBrush}" BorderThickness="1"
+                    Padding="0,12" HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Center" FontSize="16" />
+            <Button Grid.Column="2" x:Name="MessageButton" Content="发消息"
                     Click="MessageButton_Click"
                     Background="{StaticResource MetroAccentBrush}" Foreground="White"
                     BorderThickness="0" Padding="0,12" HorizontalAlignment="Stretch"

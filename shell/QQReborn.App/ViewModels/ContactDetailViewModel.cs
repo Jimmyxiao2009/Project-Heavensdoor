@@ -33,7 +33,15 @@ namespace QQReborn.App.ViewModels
 
         public bool Online => Contact != null && Contact.Online;
 
-        public string StatusText => Online ? "在线" : "离线";
+        public string StatusText =>
+            !string.IsNullOrEmpty(_extraHint) ? _extraHint : (Online ? "在线" : "离线");
+
+        private string _extraHint;
+        public void ApplyExtraHint(string hint)
+        {
+            _extraHint = hint ?? "";
+            RaisePropertyChanged(nameof(StatusText));
+        }
 
         public string SignatureText =>
             string.IsNullOrEmpty(Contact?.Signature) ? "这个人很懒，什么都没留下" : Contact.Signature;

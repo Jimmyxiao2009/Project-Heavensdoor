@@ -224,6 +224,173 @@ namespace QQReborn.App.Views
             catch (Exception) { }
         }
 
+        private async void StatusRow_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            var remote = App.ChatService as RemoteChatService;
+            if (remote == null)
+            {
+                // Mock: local-only status flip still useful for UI demo.
+                ShowLocalStatusPicker();
+                return;
+            }
+
+            var combo = new ComboBox
+            {
+                Margin = new Thickness(0, 12, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                SelectedIndex = 0,
+            };
+            // NapCat set_online_status: status / ext_status / battery_status
+            combo.Items.Add(new ComboBoxItem { Content = "在线", Tag = OnlineStatus.Online });
+            combo.Items.Add(new ComboBoxItem { Content = "离开", Tag = OnlineStatus.Away });
+            combo.Items.Add(new ComboBoxItem { Content = "忙碌", Tag = OnlineStatus.Busy });
+            combo.Items.Add(new ComboBoxItem { Content = "请勿打扰", Tag = OnlineStatus.DoNotDisturb });
+            combo.Items.Add(new ComboBoxItem { Content = "隐身", Tag = OnlineStatus.Invisible });
+
+            var dialog = new ContentDialog
+            {
+                Title = "设置在线状态",
+                Content = combo,
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消",
+            };
+
+            ContentDialogResult res;
+            try { res = await dialog.ShowAsync(); }
+            catch { return; }
+            if (res != ContentDialogResult.Primary) return;
+
+            var status = (combo.SelectedItem as ComboBoxItem)?.Tag is OnlineStatus s ? s : OnlineStatus.Online;
+            int st, ext, bat;
+            MapOnlineStatus(status, out st, out ext, out bat);
+            try
+            {
+                var ok = await remote.SetOnlineStatusAsync(st, ext, bat);
+                if (ok)
+                {
+                    _vm.SetStatus(status);
+                    UpdateStatusDot();
+                    await ShowMessageAsync("状态已更新", "提示");
+                }
+                else await ShowMessageAsync("状态更新失败", "提示");
+            }
+            catch
+            {
+                await ShowMessageAsync("状态更新失败，请检查网络", "提示");
+            }
+        }
+
+        private async void ShowLocalStatusPicker()
+        {
+            var combo = new ComboBox
+            {
+                Margin = new Thickness(0, 12, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                SelectedIndex = 0,
+            };
+            combo.Items.Add(new ComboBoxItem { Content = "在线", Tag = OnlineStatus.Online });
+            combo.Items.Add(new ComboBoxItem { Content = "离开", Tag = OnlineStatus.Away });
+            combo.Items.Add(new ComboBoxItem { Content = "忙碌", Tag = OnlineStatus.Busy });
+            combo.Items.Add(new ComboBoxItem { Content = "请勿打扰", Tag = OnlineStatus.DoNotDisturb });
+            combo.Items.Add(new ComboBoxItem { Content = "隐身", Tag = OnlineStatus.Invisible });
+            var dialog = new ContentDialog
+            {
+                Title = "设置在线状态（本地）",
+                Content = combo,
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消",
+            };
+            try
+            {
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+                var status = (combo.SelectedItem as ComboBoxItem)?.Tag is OnlineStatus s ? s : OnlineStatus.Online;
+                _vm.SetStatus(status);
+                UpdateStatusDot();
+            }
+            catch { }
+        }
+
+        private static void MapOnlineStatus(OnlineStatus status, out int napcatStatus, out int ext, out int battery)
+        {
+            ext = 0;
+            battery = 0;
+            switch (status)
+            {
+                case OnlineStatus.Away: napcatStatus = 30; break;
+                case OnlineStatus.Busy: napcatStatus = 50; break;
+                case OnlineStatus.DoNotDisturb: napcatStatus = 70; break;
+                case OnlineStatus.Invisible: napcatStatus = 40; break;
+                default: napcatStatus = 10; break;
+            }
+        }
+
+        private async void Nickname_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            await EditProfileFieldAsync(editNickname: true);
+        }
+
+        private async void Signature_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            await EditProfileFieldAsync(editNickname: false);
+        }
+
+        private async Task EditProfileFieldAsync(bool editNickname)
+        {
+            var remote = App.ChatService as RemoteChatService;
+            if (remote == null)
+            {
+                await ShowMessageAsync("演示模式不支持修改资料。", "提示");
+                return;
+            }
+
+            var input = new TextBox
+            {
+                Text = editNickname ? (_vm.Nickname ?? "") : (_vm.Signature ?? ""),
+                Margin = new Thickness(0, 12, 0, 0),
+            };
+            var dialog = new ContentDialog
+            {
+                Title = editNickname ? "修改昵称" : "修改个性签名",
+                Content = input,
+                PrimaryButtonText = "保存",
+                CloseButtonText = "取消",
+            };
+
+            ContentDialogResult res;
+            try { res = await dialog.ShowAsync(); }
+            catch { return; }
+            if (res != ContentDialogResult.Primary) return;
+
+            var text = (input.Text ?? "").Trim();
+            try
+            {
+                bool ok;
+                if (editNickname)
+                {
+                    if (string.IsNullOrEmpty(text))
+                    {
+                        await ShowMessageAsync("昵称不能为空", "提示");
+                        return;
+                    }
+                    ok = await remote.SetSelfProfileAsync(nickname: text, signature: null);
+                    if (ok) _vm.ApplyLocalNickname(text);
+                }
+                else
+                {
+                    ok = await remote.SetSelfProfileAsync(nickname: null, signature: text);
+                    if (ok) _vm.ApplyLocalSignature(text);
+                }
+                await ShowMessageAsync(ok ? "已保存" : "保存失败", "提示");
+            }
+            catch
+            {
+                await ShowMessageAsync("保存失败，请检查网络", "提示");
+            }
+        }
+
         private void MenuRow_Tapped(object sender, TappedRoutedEventArgs e)
         {
             var tag = (sender as FrameworkElement)?.Tag as string;
@@ -243,11 +410,9 @@ namespace QQReborn.App.Views
 
         private void Navigate(System.Type pageType, object parameter = null)
         {
-            // A UserControl has no Frame of its own; use the app's root frame.
-            if (Window.Current.Content is Frame rootFrame)
-            {
-                rootFrame.Navigate(pageType, parameter);
-            }
+            // A UserControl has no Frame of its own; use the app's root frame
+            // (may sit inside UiScaleService's host grid).
+            UiScaleService.GetRootFrame()?.Navigate(pageType, parameter);
         }
     }
 }

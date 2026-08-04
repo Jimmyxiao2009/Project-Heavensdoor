@@ -37,8 +37,9 @@ namespace QQReborn.App.ViewModels
             set { if (Set(ref _enterToSend, value)) Persist(); }
         }
 
-        // 0 = 小, 1 = 标准, 2 = 大
+        // 0 = 小, 1 = 标准, 2 = 大 — bindable density tokens (never root ScaleTransform).
         private double _fontSizeLevel = 1;
+        private int _uiScaleApplyEpoch;
         public double FontSizeLevel
         {
             get => _fontSizeLevel;
@@ -48,18 +49,28 @@ namespace QQReborn.App.ViewModels
                 {
                     RaisePropertyChanged(nameof(FontSizeText));
                     Persist();
+                    // Slider can fire multiple times while dragging; coalesce so we do not
+                    // RaisePropertyChanged 20 size tokens on every tick.
+                    var epoch = System.Threading.Interlocked.Increment(ref _uiScaleApplyEpoch);
+                    var level = (int)System.Math.Round(value);
+                    _ = ApplyUiScaleDebouncedAsync(epoch, level);
                 }
             }
+        }
+
+        private async System.Threading.Tasks.Task ApplyUiScaleDebouncedAsync(int epoch, int level)
+        {
+            try { await System.Threading.Tasks.Task.Delay(120); }
+            catch { return; }
+            if (epoch != _uiScaleApplyEpoch) return;
+            UiScaleService.ApplyLevel(level, persist: true);
         }
 
         public string FontSizeText
         {
             get
             {
-                int level = (int)System.Math.Round(_fontSizeLevel);
-                if (level <= 0) return "小";
-                if (level >= 2) return "大";
-                return "标准";
+                return UiScaleService.LabelForLevel((int)System.Math.Round(_fontSizeLevel));
             }
         }
 
@@ -201,6 +212,8 @@ namespace QQReborn.App.ViewModels
             RaisePropertyChanged(nameof(EnterToSend));
             RaisePropertyChanged(nameof(FontSizeLevel));
             RaisePropertyChanged(nameof(FontSizeText));
+            // Ensure the saved density is active when opening Settings (also covers first run).
+            UiScaleService.ApplyLevel((int)System.Math.Round(_fontSizeLevel), persist: false);
             RaisePropertyChanged(nameof(ServerHost));
             RaisePropertyChanged(nameof(ServerPortText));
             RaisePropertyChanged(nameof(AccessPassword));

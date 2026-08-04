@@ -279,6 +279,12 @@ async Task<string?> HandleAsync(string text, ClientConnection conn, SessionHub h
             case "acceptFriendRequest":
                 data = sessions.AcceptFriendRequest((long)N(req, "uin"));
                 break;
+            case "rejectFriendRequest":
+                data = await sessions.RejectFriendRequestAsync((long)N(req, "uin"));
+                break;
+            case "sendLike":
+                (data, error) = await sessions.SendLikeAsync((long)N(req, "targetUin"), (int)N(req, "count"));
+                break;
             case "getUserProfile":
                 (data, error) = await sessions.GetUserProfileAsync((long)N(req, "uin"));
                 break;
@@ -432,6 +438,118 @@ async Task<string?> HandleAsync(string text, ClientConnection conn, SessionHub h
                 break;
             case "groupSetSpecialTitle":
                 (data, error) = await sessions.GroupSetSpecialTitleAsync(S(req, "conversationId") ?? "", (long)N(req, "targetUin"), S(req, "title") ?? "");
+                break;
+            case "setGroupAdmin":
+                (data, error) = await sessions.SetGroupAdminAsync(
+                    S(req, "conversationId") ?? "", (long)N(req, "targetUin"),
+                    req["enable"] is JsonValue jvAdmin && jvAdmin.TryGetValue<bool>(out var en) && en);
+                break;
+            case "setGroupBan":
+                (data, error) = await sessions.SetGroupBanAsync(
+                    S(req, "conversationId") ?? "", (long)N(req, "targetUin"), (int)N(req, "duration"));
+                break;
+            case "setGroupWholeBan":
+                (data, error) = await sessions.SetGroupWholeBanAsync(
+                    S(req, "conversationId") ?? "",
+                    req["enable"] is JsonValue jvWholeBan && jvWholeBan.TryGetValue<bool>(out var enw) && enw);
+                break;
+            case "setGroupKick":
+                (data, error) = await sessions.SetGroupKickAsync(
+                    S(req, "conversationId") ?? "", (long)N(req, "targetUin"),
+                    req["rejectAddRequest"] is JsonValue jvKick && jvKick.TryGetValue<bool>(out var rej) && rej);
+                break;
+            case "setFriendRemark":
+                (data, error) = await sessions.SetFriendRemarkAsync((long)N(req, "uin"), S(req, "remark") ?? "");
+                break;
+            case "deleteFriend":
+            {
+                static bool? B(JsonObject o, string k)
+                    => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : null;
+                (data, error) = await sessions.DeleteFriendAsync(
+                    (long)N(req, "uin"), B(req, "tempBlock") == true, B(req, "bothDel") == true);
+                break;
+            }
+            case "setSelfProfile":
+                (data, error) = await sessions.SetSelfProfileAsync(S(req, "nickname"), S(req, "signature"));
+                break;
+            case "setOnlineStatus":
+                (data, error) = await sessions.SetOnlineStatusAsync(
+                    (int)N(req, "status"), (int)N(req, "extStatus"), (int)N(req, "batteryStatus"));
+                break;
+            case "getGroupNotices":
+                (data, error) = await sessions.GetGroupNoticesAsync(S(req, "conversationId") ?? "");
+                break;
+            case "sendGroupNotice":
+                (data, error) = await sessions.SendGroupNoticeAsync(
+                    S(req, "conversationId") ?? "", S(req, "content") ?? "");
+                break;
+            case "deleteGroupNotice":
+                (data, error) = await sessions.DeleteGroupNoticeAsync(
+                    S(req, "conversationId") ?? "", S(req, "noticeId") ?? "");
+                break;
+            case "getGroupFiles":
+                (data, error) = await sessions.GetGroupFilesAsync(
+                    S(req, "conversationId") ?? "", S(req, "folderId"));
+                break;
+            case "getGroupFileUrl":
+                (data, error) = await sessions.GetGroupFileUrlAsync(
+                    S(req, "conversationId") ?? "", S(req, "fileId") ?? "", (int)N(req, "busid"));
+                break;
+            case "markAllAsRead":
+                (data, error) = await sessions.MarkAllAsReadAsync();
+                break;
+            case "getEssenceList":
+                (data, error) = await sessions.GetEssenceListAsync(S(req, "conversationId") ?? "");
+                break;
+            case "setEssence":
+            {
+                static bool? B(JsonObject o, string k)
+                    => o[k] is JsonValue v && v.TryGetValue<bool>(out var b) ? b : null;
+                (data, error) = await sessions.SetEssenceAsync(S(req, "messageId") ?? "", B(req, "set") != false);
+                break;
+            }
+            case "getGroupHonor":
+                (data, error) = await sessions.GetGroupHonorAsync(S(req, "conversationId") ?? "");
+                break;
+            case "getGroupShutList":
+                (data, error) = await sessions.GetGroupShutListAsync(S(req, "conversationId") ?? "");
+                break;
+            case "groupSign":
+                (data, error) = await sessions.GroupSignAsync(S(req, "conversationId") ?? "");
+                break;
+            case "setGroupPortrait":
+                (data, error) = await sessions.SetGroupPortraitAsync(
+                    S(req, "conversationId") ?? "", S(req, "imageBase64") ?? "");
+                break;
+            case "setGroupRemark":
+                (data, error) = await sessions.SetGroupRemarkAsync(
+                    S(req, "conversationId") ?? "", S(req, "remark") ?? "");
+                break;
+            case "createGroupFolder":
+                (data, error) = await sessions.CreateGroupFolderAsync(
+                    S(req, "conversationId") ?? "", S(req, "name") ?? "");
+                break;
+            case "deleteGroupFile":
+                (data, error) = await sessions.DeleteGroupFileAsync(
+                    S(req, "conversationId") ?? "", S(req, "fileId") ?? "", (int)N(req, "busid"));
+                break;
+            case "fetchPttText":
+                (data, error) = await sessions.FetchPttTextAsync(S(req, "messageId") ?? "");
+                break;
+            case "getProfileLike":
+            {
+                var uin = (long)N(req, "uin");
+                (data, error) = await sessions.GetProfileLikeAsync(uin > 0 ? uin : null);
+                break;
+            }
+            case "getUserStatus":
+                (data, error) = await sessions.GetUserStatusAsync((long)N(req, "uin"));
+                break;
+            case "getVersionInfo":
+                (data, error) = await sessions.GetVersionInfoAsync();
+                break;
+            case "getGroupAtAllRemain":
+                (data, error) = await sessions.GetGroupAtAllRemainAsync(S(req, "conversationId") ?? "");
                 break;
             default:
                 data = null;

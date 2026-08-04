@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 using Windows.UI.Xaml;
@@ -39,15 +40,20 @@ namespace QQReborn.App.Views
             Unloaded += MomentsView_Unloaded;
         }
 
+        private int _spaceFeedEpoch;
+
         private async void MomentsView_Loaded(object sender, RoutedEventArgs e)
         {
-            if (_remote != null) _remote.SpaceFeedUpdated += Remote_SpaceFeedUpdated;
+            if (_remote != null)
+            {
+                _remote.SpaceFeedUpdated -= Remote_SpaceFeedUpdated;
+                _remote.SpaceFeedUpdated += Remote_SpaceFeedUpdated;
+            }
             try
             {
                 SyncText.Text = "同步中...";
-                await _vm.LoadAsync();
-            // after load hasmore
-            if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
+                await _vm.LoadAsync();
+                if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
                 SyncText.Text = "已同步";
             }
             catch
@@ -59,22 +65,26 @@ namespace QQReborn.App.Views
         private void MomentsView_Unloaded(object sender, RoutedEventArgs e)
         {
             if (_remote != null) _remote.SpaceFeedUpdated -= Remote_SpaceFeedUpdated;
+            // Invalidate any in-flight push refresh so it cannot touch unloaded UI.
+            System.Threading.Interlocked.Increment(ref _spaceFeedEpoch);
         }
 
         private async void Remote_SpaceFeedUpdated(object sender, EventArgs e)
         {
-            // Debounce push-driven refreshes so login/background polls do not keep
-            // yanking the list under the user's finger.
+            // Coalesce push storms (login + poll) so the feed is not rebuilt under the finger.
+            var epoch = System.Threading.Interlocked.Increment(ref _spaceFeedEpoch);
             try
             {
-                await _vm.RefreshAsync();
-                if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
+                await Task.Delay(400);
+                if (epoch != _spaceFeedEpoch) return;
+                await _vm.RefreshAsync();
+                if (epoch != _spaceFeedEpoch) return;
                 if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
                 SyncText.Text = "已更新";
             }
             catch
             {
-                SyncText.Text = "同步失败";
+                if (epoch == _spaceFeedEpoch) SyncText.Text = "同步失败";
             }
         }
 
@@ -84,7 +94,7 @@ namespace QQReborn.App.Views
             SyncText.Text = "同步中...";
             try
             {
-                await _vm.RefreshAsync();
+                await _vm.RefreshAsync();
                 if (_remote != null) _vm.HasMore = _remote.SpaceFeedHasMore;
                 SyncText.Text = "已同步";
             }
@@ -205,7 +215,7 @@ namespace QQReborn.App.Views
             e.Handled = true;
             var path = (sender as FrameworkElement)?.Tag as string;
             if (string.IsNullOrEmpty(path)) return;
-            (Window.Current.Content as Frame)?.Navigate(typeof(VideoPlayerPage), path);
+            UiScaleService.GetRootFrame()?.Navigate(typeof(VideoPlayerPage), path);
         }
 
         private void MomentImage_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
@@ -213,7 +223,7 @@ namespace QQReborn.App.Views
             var path = (sender as FrameworkElement)?.Tag as string;
             if (string.IsNullOrEmpty(path)) return;
             e.Handled = true;
-            (Window.Current.Content as Frame)?.Navigate(typeof(ImageViewerPage), path);
+            UiScaleService.GetRootFrame()?.Navigate(typeof(ImageViewerPage), path);
         }
 
         private void MomentCard_Tapped(object sender, Windows.UI.Xaml.Input.TappedRoutedEventArgs e)
@@ -221,7 +231,7 @@ namespace QQReborn.App.Views
             if (e.Handled) return;
             if (!((sender as FrameworkElement)?.DataContext is Moment moment)) return;
             e.Handled = true;
-            (Window.Current.Content as Frame)?.Navigate(typeof(MomentDetailPage), moment);
+            UiScaleService.GetRootFrame()?.Navigate(typeof(MomentDetailPage), moment);
         }
 
         // Tapping 💬 opens a tiny inline composer flyout anchored to the button.

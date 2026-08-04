@@ -22,6 +22,7 @@ public interface ISessionBackend
     Task<JsonArray> GetGroupMembersAsync(string conversationId);
     JsonArray GetFriendRequests();
     JsonObject AcceptFriendRequest(long uin);
+    Task<JsonObject> RejectFriendRequestAsync(long uin);
     Task<(JsonObject? data, string? error)> GetUserProfileAsync(long uin);
     Task<(JsonObject? data, string? error)> GetEarlierMessagesAsync(string conversationId, string? beforeId, int count);
     Task<JsonObject> RecallMessageAsync(string conversationId, string messageId);
@@ -60,4 +61,36 @@ public interface ISessionBackend
     Task<(JsonObject? data, string? error)> GroupRenameAsync(string conversationId, string newName);
     Task<(JsonObject? data, string? error)> GroupMemberRenameAsync(string conversationId, long targetUin, string newName);
     Task<(JsonObject? data, string? error)> GroupSetSpecialTitleAsync(string conversationId, long targetUin, string title);
+    Task<(JsonObject? data, string? error)> SendLikeAsync(long targetUin, int count);
+    Task<(JsonObject? data, string? error)> SetGroupAdminAsync(string conversationId, long targetUin, bool enable);
+    Task<(JsonObject? data, string? error)> SetGroupBanAsync(string conversationId, long targetUin, int durationSeconds);
+    Task<(JsonObject? data, string? error)> SetGroupWholeBanAsync(string conversationId, bool enable);
+    Task<(JsonObject? data, string? error)> SetGroupKickAsync(string conversationId, long targetUin, bool rejectAddRequest);
+
+    // NapCat-aligned extensions
+    Task<(JsonObject? data, string? error)> SetFriendRemarkAsync(long uin, string remark);
+    Task<(JsonObject? data, string? error)> DeleteFriendAsync(long uin, bool tempBlock, bool bothDel);
+    Task<(JsonObject? data, string? error)> SetSelfProfileAsync(string? nickname, string? signature);
+    Task<(JsonObject? data, string? error)> SetOnlineStatusAsync(int status, int extStatus, int batteryStatus);
+    Task<(JsonObject? data, string? error)> GetGroupNoticesAsync(string conversationId);
+    Task<(JsonObject? data, string? error)> SendGroupNoticeAsync(string conversationId, string content);
+    Task<(JsonObject? data, string? error)> DeleteGroupNoticeAsync(string conversationId, string noticeId);
+    Task<(JsonObject? data, string? error)> GetGroupFilesAsync(string conversationId, string? folderId);
+    Task<(JsonObject? data, string? error)> GetGroupFileUrlAsync(string conversationId, string fileId, int busid);
+
+    Task<(JsonObject? data, string? error)> MarkAllAsReadAsync();
+    Task<(JsonObject? data, string? error)> GetEssenceListAsync(string conversationId);
+    Task<(JsonObject? data, string? error)> SetEssenceAsync(string messageId, bool set);
+    Task<(JsonObject? data, string? error)> GetGroupHonorAsync(string conversationId);
+    Task<(JsonObject? data, string? error)> GetGroupShutListAsync(string conversationId);
+    Task<(JsonObject? data, string? error)> GroupSignAsync(string conversationId);
+    Task<(JsonObject? data, string? error)> SetGroupPortraitAsync(string conversationId, string imageBase64);
+    Task<(JsonObject? data, string? error)> SetGroupRemarkAsync(string conversationId, string remark);
+    Task<(JsonObject? data, string? error)> CreateGroupFolderAsync(string conversationId, string name);
+    Task<(JsonObject? data, string? error)> DeleteGroupFileAsync(string conversationId, string fileId, int busid);
+    Task<(JsonObject? data, string? error)> FetchPttTextAsync(string messageId);
+    Task<(JsonObject? data, string? error)> GetProfileLikeAsync(long? uin = null);
+    Task<(JsonObject? data, string? error)> GetUserStatusAsync(long uin);
+    Task<(JsonObject? data, string? error)> GetVersionInfoAsync();
+    Task<(JsonObject? data, string? error)> GetGroupAtAllRemainAsync(string conversationId);
 }

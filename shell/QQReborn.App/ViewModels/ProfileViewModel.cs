@@ -141,5 +141,18 @@ namespace QQReborn.App.ViewModels
             AvatarPath = "file:///" + localFilePath.Replace("\\", "/");
             if (_self != null) _self.AvatarPath = AvatarPath;
         }
+
+        public void ApplyLocalNickname(string nickname)
+        {
+            if (string.IsNullOrEmpty(nickname)) return;
+            Nickname = nickname;
+            if (_self != null) _self.Nickname = nickname;
+        }
+
+        public void ApplyLocalSignature(string signature)
+        {
+            Signature = signature ?? "";
+            if (_self != null) _self.Signature = Signature;
+        }
     }
 }

@@ -23,7 +23,7 @@
 
                 <Rectangle Grid.Column="0" Width="48" Height="48" VerticalAlignment="Center">
                     <Rectangle.Fill>
-                        <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                        <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                     </Rectangle.Fill>
                 </Rectangle>
 

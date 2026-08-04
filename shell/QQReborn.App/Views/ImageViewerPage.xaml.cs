@@ -38,6 +38,7 @@ namespace QQReborn.App.Views
         private bool _ready;
         private bool _chromeVisible = true;
         private bool _loading;
+        private bool _fitting;
         private double _panAccumX; // horizontal pan while fit → gallery flip
 
         private DispatcherTimer _toastTimer;
@@ -49,7 +50,15 @@ namespace QQReborn.App.Views
             InitializeComponent();
             SizeChanged += (_, __) =>
             {
-                if (_ready) FitToScreen(keepRelative: true);
+                // FitToScreen only adjusts a transform; guard anyway so a future change that
+                // mutates layout cannot re-enter SizeChanged on the same stack.
+                if (!_ready || _fitting) return;
+                try
+                {
+                    _fitting = true;
+                    FitToScreen(keepRelative: true);
+                }
+                finally { _fitting = false; }
             };
         }
 

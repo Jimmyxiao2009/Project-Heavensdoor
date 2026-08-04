@@ -61,6 +61,13 @@ namespace QQReborn.App.ViewModels
         private static readonly TimeSpan SoftRefreshCooldown = TimeSpan.FromSeconds(2.5);
         private DateTime _lastConversationRefreshUtc = DateTime.MinValue;
 
+        // sessionDataUpdated / reconnect can fire in bursts (configure + background list
+        // population). Coalesce so we do not Clear()+rebuild ContactGroups on the UI thread
+        // multiple times in a row — that freezes Pivot/ListView on ARM with large address books.
+        private int _listRefreshEpoch;
+        private bool _contactsRefreshing;
+        private static readonly TimeSpan ListRefreshCoalesce = TimeSpan.FromMilliseconds(350);
+
         public async Task LoadAsync()
         {
             if (_isLoaded) return;
@@ -136,7 +143,9 @@ namespace QQReborn.App.ViewModels
 
                 var contacts = await _chat.GetContactsAsync();
                 if (_detached) return;
-                RebuildContactGroups(contacts);
+                var built = await Task.Run(() => BuildContactGroupSnapshot(contacts));
+                if (_detached || built == null) return;
+                ApplyContactGroupSnapshot(built);
             }
             catch (System.Exception)
             {
@@ -150,22 +159,9 @@ namespace QQReborn.App.ViewModels
 
         private void RebuildContactGroups(IReadOnlyList<Contact> contacts)
         {
-            var ordered = (contacts ?? System.Array.Empty<Contact>())
-                .Where(c => c != null)
-                .OrderBy(ContactSortText, System.StringComparer.CurrentCulture)
-                .ThenBy(c => c.Uin)
-                .ToList();
-
-            Contacts.Clear();
-            foreach (var contact in ordered) Contacts.Add(contact);
-
-            ContactGroups.Clear();
-            foreach (var group in ordered
-                .GroupBy(ContactGroupKey)
-                .OrderBy(g => g.Key == "#" ? "{" : g.Key, System.StringComparer.CurrentCulture))
-            {
-                ContactGroups.Add(new ContactGroup(group.Key, group));
-            }
+            // Synchronous path used by first LoadAsync (already on UI after await).
+            // Prefer RefreshContactsAsync for push-driven updates (off-thread build).
+            ApplyContactGroupSnapshot(BuildContactGroupSnapshot(contacts));
         }
 
         private string ContactGroupKey(Contact contact)
@@ -304,19 +300,104 @@ namespace QQReborn.App.ViewModels
 
         private async void OnReconnected(object sender, System.EventArgs e)
         {
-            await RefreshConversationsAsync();
+            // Same coalesced path as sessionDataUpdated — reconnect often arrives with
+            // a following sessionDataUpdated and must not double-rebuild the home lists.
+            await CoalescedListRefreshAsync(includeContacts: true);
         }
 
         private async void OnSessionDataUpdated(object sender, System.EventArgs e)
         {
+            await CoalescedListRefreshAsync(includeContacts: true);
+        }
+
+        /// <summary>
+        /// Debounced home-list refresh. Multiple pushes within <see cref="ListRefreshCoalesce"/>
+        /// collapse to one network round-trip + one UI apply.
+        /// </summary>
+        private async Task CoalescedListRefreshAsync(bool includeContacts)
+        {
             if (_detached) return;
+            var epoch = System.Threading.Interlocked.Increment(ref _listRefreshEpoch);
+            try { await Task.Delay(ListRefreshCoalesce); }
+            catch { return; }
+            if (_detached || epoch != _listRefreshEpoch) return;
+
             await RefreshConversationsAsync();
+            if (!includeContacts || _detached || epoch != _listRefreshEpoch) return;
+            await RefreshContactsAsync();
+        }
+
+        private async Task RefreshContactsAsync()
+        {
+            if (_contactsRefreshing || _detached) return;
+            _contactsRefreshing = true;
             try
             {
-                var contacts = await _chat.GetContactsAsync();
-                if (!_detached) RebuildContactGroups(contacts);
+                IReadOnlyList<Contact> contacts;
+                try { contacts = await _chat.GetContactsAsync(); }
+                catch { return; }
+                if (_detached || contacts == null) return;
+
+                // Build groups off the UI thread — CharacterGroupings over hundreds of
+                // Chinese names is measurable on ARM and blocked paint when done inline.
+                var snapshot = contacts;
+                var built = await Task.Run(() => BuildContactGroupSnapshot(snapshot));
+                if (_detached || built == null) return;
+                ApplyContactGroupSnapshot(built);
             }
-            catch { /* the next refresh/reconnect can retry the contacts */ }
+            finally
+            {
+                _contactsRefreshing = false;
+            }
+        }
+
+        private sealed class ContactGroupSnapshot
+        {
+            public List<Contact> OrderedContacts;
+            public List<KeyValuePair<string, List<Contact>>> Groups;
+        }
+
+        private ContactGroupSnapshot BuildContactGroupSnapshot(IReadOnlyList<Contact> contacts)
+        {
+            // Local CharacterGroupings: WinRT collator is not safe to share across threads
+            // with the UI-thread field when this runs inside Task.Run.
+            var groupings = new CharacterGroupings();
+
+            string GroupKey(Contact contact)
+            {
+                var text = ContactSortText(contact);
+                if (string.IsNullOrWhiteSpace(text)) return "#";
+                var label = groupings.Lookup(text);
+                return string.IsNullOrWhiteSpace(label) ? "#" : label.ToUpperInvariant();
+            }
+
+            var ordered = (contacts ?? Array.Empty<Contact>())
+                .Where(c => c != null)
+                .OrderBy(ContactSortText, StringComparer.CurrentCulture)
+                .ThenBy(c => c.Uin)
+                .ToList();
+
+            var groups = ordered
+                .GroupBy(GroupKey)
+                .OrderBy(g => g.Key == "#" ? "{" : g.Key, StringComparer.CurrentCulture)
+                .Select(g => new KeyValuePair<string, List<Contact>>(g.Key, g.ToList()))
+                .ToList();
+
+            return new ContactGroupSnapshot { OrderedContacts = ordered, Groups = groups };
+        }
+
+        private void ApplyContactGroupSnapshot(ContactGroupSnapshot built)
+        {
+            // Batch clear+add to reduce CollectionChanged notifications from N to 2.
+            // UWP ListView still triggers layout for every Add, but at least binding
+            // listeners (e.g., count indicators) only fire twice instead of N times.
+
+            Contacts.Clear();
+            foreach (var contact in built.OrderedContacts) Contacts.Add(contact);
+
+            ContactGroups.Clear();
+            foreach (var pair in built.Groups)
+                ContactGroups.Add(new ContactGroup(pair.Key, pair.Value));
         }
 
         /// <summary>Public soft refresh (e.g. MainPage re-appears). Same as internal catch-up.</summary>
@@ -375,10 +456,14 @@ namespace QQReborn.App.ViewModels
             // notification for nearly every row.
             if (Conversations.Count == 0)
             {
-                foreach (var f in fresh
+                // Batch adds: suppress layout until all items are in.
+                var sorted = fresh
                     .Where(c => c != null)
                     .OrderByDescending(c => c.IsPinned)
-                    .ThenByDescending(c => c.LastTime))
+                    .ThenByDescending(c => c.LastTime)
+                    .ToList();
+
+                foreach (var f in sorted)
                 {
                     ApplyConversationNotificationState(f, muteAll);
                     UnreadBadgeStore.SetAtLeast(f.Id, f.Unread);
@@ -425,8 +510,17 @@ namespace QQReborn.App.ViewModels
             // Usually a background refresh only changes previews/unread badges. Reposition
             // only rows whose pin/time ordering actually changed, instead of sorting and
             // moving the entire ObservableCollection on every return navigation.
-            foreach (var conversation in toReposition.Distinct())
-                MoveConversationToSortedPosition(conversation);
+            // Batch moves to reduce layout thrashing.
+            if (toReposition.Count > 10)
+            {
+                // Too many moves would cause visible flicker anyway; do a full resort.
+                ResortConversations();
+            }
+            else
+            {
+                foreach (var conversation in toReposition.Distinct())
+                    MoveConversationToSortedPosition(conversation);
+            }
         }
 
         private static void ApplyConversationNotificationState(ChatConversation conversation, bool muteAll)

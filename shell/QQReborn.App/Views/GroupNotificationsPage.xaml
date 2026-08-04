@@ -41,7 +41,7 @@
 
                         <Ellipse Grid.Column="0" Width="44" Height="44" VerticalAlignment="Center">
                             <Ellipse.Fill>
-                                <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                                <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                             </Ellipse.Fill>
                         </Ellipse>
 

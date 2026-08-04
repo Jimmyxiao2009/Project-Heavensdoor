@@ -13,7 +13,7 @@ namespace QQReborn.App.Services
     {
         private const string KeyNotifications = "qqr.settings.notifications";
         private const string KeyEnterToSend = "qqr.settings.enterToSend";
-        private const string KeyFontSizeLevel = "qqr.settings.fontSizeLevel";
+        private const string KeyFontSizeLevel = UiScaleService.KeyFontSizeLevel;
         private const string KeyServerHost = "qqr.settings.serverHost";
         private const string KeyServerPort = "qqr.settings.serverPort";
         private const string KeyAccessPassword = "qqr.settings.accessPassword";

@@ -29,13 +29,25 @@ namespace QQReborn.App.Views
             if ((sender as FrameworkElement)?.DataContext is FriendRequest request)
             {
                 await _vm.AcceptAsync(request);
-                // The real backend honestly reports handled:false -- LagrangeV2 has no API
-                // to accept friend requests. Without this the button just silently does
-                // nothing, which reads as "the app is broken" instead of "not supported".
+                // NapCat path should set handled:true; if not, surface failure instead of silence.
                 if (!request.Handled)
                 {
                     var dialog = new Windows.UI.Popups.MessageDialog(
-                        "当前后端暂不支持同意好友请求（协议库没有这个接口），请先在手机官方 QQ 上操作。", "暂不支持");
+                        "同意失败，请确认 NapCat 在线且请求未过期。", "提示");
+                    try { await dialog.ShowAsync(); } catch (Exception) { }
+                }
+            }
+        }
+
+        private async void RejectButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is FriendRequest request)
+            {
+                await _vm.RejectAsync(request);
+                if (!request.Handled)
+                {
+                    var dialog = new Windows.UI.Popups.MessageDialog(
+                        "拒绝失败，请确认 NapCat 在线且请求未过期。", "提示");
                     try { await dialog.ShowAsync(); } catch (Exception) { }
                 }
             }

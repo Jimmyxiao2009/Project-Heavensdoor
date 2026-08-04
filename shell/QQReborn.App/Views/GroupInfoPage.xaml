@@ -9,19 +9,15 @@
     <Page.Resources>
         <mvvm:RoleToBrushConverter x:Key="RoleToBrush" />
 
-        <!-- 群成员格子 -->
+        <!-- 群成员格子；菜单按本群身份动态生成（普通成员不展示管理项） -->
         <DataTemplate x:Key="GroupMemberTemplate" x:DataType="models:GroupMember">
             <StackPanel Width="64" Margin="0,0,8,16">
-                <FlyoutBase.AttachedFlyout>
-                    <MenuFlyout>
-                        <MenuFlyoutItem Text="修改群名片" Click="ChangeMemberName_Click" />
-                        <MenuFlyoutItem Text="设置专属头衔" Click="SetSpecialTitle_Click" />
-                    </MenuFlyout>
-                </FlyoutBase.AttachedFlyout>
-                <Grid Width="52" Height="52" HorizontalAlignment="Center" RightTapped="MemberGrid_RightTapped" Holding="MemberGrid_Holding">
+                <Grid Width="52" Height="52" HorizontalAlignment="Center"
+                      RightTapped="MemberGrid_RightTapped" Holding="MemberGrid_Holding"
+                      DataContext="{Binding}">
                     <Rectangle Width="52" Height="52">
                         <Rectangle.Fill>
-                            <ImageBrush ImageSource="{Binding AvatarPath}" Stretch="UniformToFill" />
+                            <ImageBrush ImageSource="{Binding AvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                         </Rectangle.Fill>
                     </Rectangle>
                     <Border HorizontalAlignment="Left" VerticalAlignment="Bottom"
@@ -111,18 +107,122 @@
                         Foreground="{StaticResource MetroAccentBrush}"
                         BorderThickness="0" Padding="0,10" FontSize="13" Margin="0,-8,0,18" />
 
-                <!-- 群公告 -->
-                <Border Background="{StaticResource MetroPanelBrush}" Padding="14,12" Margin="0,0,0,12">
-                    <StackPanel>
-                        <TextBlock Text="群公告" FontSize="14"
-                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                        <TextBlock x:Name="AnnouncementText" FontSize="13" TextWrapping="Wrap" Margin="0,8,0,0"
-                                   Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                    </StackPanel>
+                <!-- 群公告：所有人可读；仅群主/管理可点按编辑 -->
+                <Border x:Name="AnnouncementRow" Background="{StaticResource MetroPanelBrush}"
+                        Padding="14,12" Margin="0,0,0,12"
+                        Tapped="Announcement_Tapped">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="群公告" FontSize="14"
+                                       Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                            <TextBlock x:Name="AnnouncementText" FontSize="13" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                        </StackPanel>
+                        <TextBlock x:Name="AnnouncementEditLabel" Grid.Column="1" Text="编辑" FontSize="13"
+                                   VerticalAlignment="Top"
+                                   Foreground="{StaticResource MetroAccentBrush}" Margin="12,0,0,0"
+                                   Visibility="Collapsed" />
+                    </Grid>
                 </Border>
 
-                <!-- 群名称 -->
-                <Grid Background="{StaticResource MetroPanelBrush}" Padding="14,14" Margin="0,0,0,12" Tapped="GroupName_Tapped">
+                <!-- 群文件 -->
+                <Grid Background="{StaticResource MetroPanelBrush}" Padding="14,14" Margin="0,0,0,1"
+                      Tapped="GroupFiles_Tapped">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="群文件" FontSize="15"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="浏览群共享文件与文件夹" FontSize="12" Margin="0,2,0,0"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="&#x203A;" FontSize="18" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                </Grid>
+
+                <Grid Background="{StaticResource MetroPanelBrush}" Padding="14,14" Margin="0,0,0,1"
+                      Tapped="GroupSign_Tapped">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="群签到" FontSize="15" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <TextBlock Grid.Column="1" Text="签到" FontSize="14" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroAccentBrush}" />
+                </Grid>
+
+                <Grid Background="{StaticResource MetroPanelBrush}" Padding="14,14" Margin="0,0,0,1"
+                      Tapped="GroupHonor_Tapped">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="群荣誉" FontSize="15" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <TextBlock Grid.Column="1" Text="查看" FontSize="14" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroAccentBrush}" />
+                </Grid>
+
+                <Grid Background="{StaticResource MetroPanelBrush}" Padding="14,14" Margin="0,0,0,1"
+                      Tapped="GroupEssence_Tapped">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="精华消息" FontSize="15" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <TextBlock Grid.Column="1" Text="查看" FontSize="14" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroAccentBrush}" />
+                </Grid>
+
+                <Grid x:Name="ShutListRow" Background="{StaticResource MetroPanelBrush}"
+                      Padding="14,14" Margin="0,0,0,1"
+                      Tapped="GroupShutList_Tapped" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="禁言列表" FontSize="15" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <TextBlock Grid.Column="1" Text="查看" FontSize="14" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroAccentBrush}" />
+                </Grid>
+
+                <Grid Background="{StaticResource MetroPanelBrush}" Padding="14,14" Margin="0,0,0,1"
+                      Tapped="GroupRemark_Tapped">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="群备注" FontSize="15" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <TextBlock Grid.Column="1" Text="&#x270E;" FontSize="16" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                </Grid>
+
+                <Grid x:Name="PortraitRow" Background="{StaticResource MetroPanelBrush}"
+                      Padding="14,14" Margin="0,0,0,12"
+                      Tapped="GroupPortrait_Tapped" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="修改群头像" FontSize="15" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                    <TextBlock Grid.Column="1" Text="&#x203A;" FontSize="18" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                </Grid>
+
+                <!-- 群名称：仅管理可改 -->
+                <Grid x:Name="GroupNameRow" Background="{StaticResource MetroPanelBrush}"
+                      Padding="14,14" Margin="0,0,0,12" Tapped="GroupName_Tapped">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -134,8 +234,28 @@
                                HorizontalAlignment="Right" Margin="12,0,8,0"
                                TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                    <TextBlock Grid.Column="2" Text="&#x270E;" FontSize="18" VerticalAlignment="Center"
-                               Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                    <TextBlock x:Name="GroupNameEditGlyph" Grid.Column="2" Text="&#x270E;" FontSize="18"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroSecondaryTextBrush}"
+                               Visibility="Collapsed" />
+                </Grid>
+
+                <!-- 全员禁言：仅群主/管理 -->
+                <Grid x:Name="WholeBanRow" Background="{StaticResource MetroPanelBrush}"
+                      Padding="14,12" Margin="0,0,0,12"
+                      Tapped="WholeBan_Tapped" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <TextBlock Text="全员禁言" FontSize="15"
+                                   Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                        <TextBlock Text="开启后仅群主/管理员可发言" FontSize="12" Margin="0,2,0,0"
+                                   Foreground="{StaticResource MetroSecondaryTextBrush}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="管理" FontSize="14" VerticalAlignment="Center"
+                               Foreground="{StaticResource MetroAccentBrush}" />
                 </Grid>
 
                 <!-- 置顶 / 免打扰：经网关持久化，多台 Shell 实时同步；官方桌面/手机 QQ 云同步暂不可用 -->

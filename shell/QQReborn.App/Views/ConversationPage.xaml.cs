@@ -129,10 +129,16 @@ namespace QQReborn.App.Views
             // merges its snapshot fetch with anything Append()'ed live during the await instead
             // of clobbering it, so a message that races in during the load is kept exactly once.
             App.ActiveConversationId = conv != null ? conv.Id : _vm.ConversationId;
+            // Symmetric -= before += so a re-entered OnNavigatedTo never doubles handlers.
+            _chat.MessageReceived -= OnMessageReceived;
             _chat.MessageReceived += OnMessageReceived;
+            _chat.TypingChanged -= OnTypingChanged;
             _chat.TypingChanged += OnTypingChanged;
             if (_chat is RemoteChatService remoteRecall)
+            {
+                remoteRecall.MessageRecalled -= OnMessageRecalled;
                 remoteRecall.MessageRecalled += OnMessageRecalled;
+            }
 
             if (needLoad)
             {
@@ -159,16 +165,50 @@ namespace QQReborn.App.Views
         ///   starts with "#"    -> solid color "#AARRGGBB"
         ///   starts with "ms-appx" -> image asset (Stretch=UniformToFill)
         /// </summary>
+        private bool _selfIsGroupAdmin;
+        private long _selfUin;
+
         private async System.Threading.Tasks.Task LoadConversationInBackgroundAsync(ChatConversation conv)
         {
             try
             {
                 await _vm.LoadAsync(conv);
                 if (!_hasLeft) ScrollToBottom();
+                if (conv != null && conv.Kind == ConversationKind.Group)
+                    _ = ResolveSelfGroupRoleAsync(conv.Id);
+                else
+                    _selfIsGroupAdmin = false;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("Conversation background load failed: " + ex);
+            }
+        }
+
+        private async System.Threading.Tasks.Task ResolveSelfGroupRoleAsync(string conversationId)
+        {
+            try
+            {
+                if (_selfUin <= 0)
+                {
+                    var self = await _chat.GetSelfAsync();
+                    _selfUin = self != null ? self.Uin : 0;
+                }
+                if (_selfUin <= 0 || string.IsNullOrEmpty(conversationId))
+                {
+                    _selfIsGroupAdmin = false;
+                    return;
+                }
+                var members = await _chat.GetGroupMembersAsync(conversationId);
+                var me = members != null
+                    ? members.FirstOrDefault(m => m != null && m.Uin == _selfUin)
+                    : null;
+                _selfIsGroupAdmin = me != null && me.IsAdmin;
+            }
+            catch (Exception ex)
+            {
+                _selfIsGroupAdmin = false;
+                System.Diagnostics.Debug.WriteLine("ResolveSelfGroupRole: " + ex.Message);
             }
         }
 
@@ -1525,6 +1565,71 @@ namespace QQReborn.App.Views
                     react.Items.Add(item);
                 }
                 menu.Items.Add(react);
+
+                // 设/取消精华：仅群主或管理员
+                if (_selfIsGroupAdmin)
+                {
+                    var essence = new MenuFlyoutItem { Text = "设为精华" };
+                    essence.Click += async (s, e) =>
+                    {
+                        var remote = _chat as RemoteChatService;
+                        if (remote == null) return;
+                        try
+                        {
+                            var ok = await remote.SetEssenceAsync(m.Id, true);
+                            _vm.AppendSystem(ok ? "已设为精华消息" : "设置精华失败");
+                            ScrollToBottom();
+                        }
+                        catch (Exception ex)
+                        {
+                            _vm.AppendSystem("设置精华失败：" + ex.Message);
+                            ScrollToBottom();
+                        }
+                    };
+                    menu.Items.Add(essence);
+
+                    var unEssence = new MenuFlyoutItem { Text = "取消精华" };
+                    unEssence.Click += async (s, e) =>
+                    {
+                        var remote = _chat as RemoteChatService;
+                        if (remote == null) return;
+                        try
+                        {
+                            var ok = await remote.SetEssenceAsync(m.Id, false);
+                            _vm.AppendSystem(ok ? "已取消精华" : "取消精华失败");
+                            ScrollToBottom();
+                        }
+                        catch (Exception ex)
+                        {
+                            _vm.AppendSystem("取消精华失败：" + ex.Message);
+                            ScrollToBottom();
+                        }
+                    };
+                    menu.Items.Add(unEssence);
+                }
+            }
+
+            // 语音转文字
+            if (m.IsVoice && _chat is RemoteChatService)
+            {
+                var ptt = new MenuFlyoutItem { Text = "转文字" };
+                ptt.Click += async (s, e) =>
+                {
+                    var remote = _chat as RemoteChatService;
+                    if (remote == null) return;
+                    try
+                    {
+                        var text = await remote.FetchPttTextAsync(m.Id);
+                        _vm.AppendSystem(string.IsNullOrEmpty(text) ? "转文字失败" : ("语音识别：" + text));
+                        ScrollToBottom();
+                    }
+                    catch (Exception ex)
+                    {
+                        _vm.AppendSystem("转文字失败：" + ex.Message);
+                        ScrollToBottom();
+                    }
+                };
+                menu.Items.Add(ptt);
             }
 
             // 转发（NapCat 合并转发）

@@ -20,7 +20,7 @@
                     </Grid.ColumnDefinitions>
                     <Rectangle Grid.Column="0" Width="40" Height="40" VerticalAlignment="Top">
                         <Rectangle.Fill>
-                            <ImageBrush ImageSource="{Binding SenderAvatarPath}" Stretch="UniformToFill" />
+                            <ImageBrush ImageSource="{Binding SenderAvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                         </Rectangle.Fill>
                     </Rectangle>
                     <StackPanel Grid.Column="1" Margin="10,0,0,0" HorizontalAlignment="Left"
@@ -36,7 +36,8 @@
                         </Border>
                         <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left"
                                 Visibility="{Binding IsTextOnly, Converter={StaticResource BoolToVisibility}}">
-                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="15"
+                            <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                       FontSize="{Binding BubbleText, Source={StaticResource UiScale}}"
                                        Foreground="{StaticResource MetroPrimaryTextBrush}" />
                         </Border>
                         <Border Background="{StaticResource MetroBubbleOtherBrush}" Padding="12,9" HorizontalAlignment="Left"
@@ -58,7 +59,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:MessageElement">
                                         <StackPanel Margin="0,2">
-                                            <TextBlock Text="{Binding Text}" Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}" TextWrapping="Wrap" FontSize="15" Foreground="{StaticResource MetroPrimaryTextBrush}" />
+                                            <TextBlock Text="{Binding Text}" Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}" TextWrapping="Wrap" FontSize="{Binding BubbleText, Source={StaticResource UiScale}}" Foreground="{StaticResource MetroPrimaryTextBrush}" />
                                             <Image Source="{Binding Url}" Visibility="{Binding IsImage, Converter={StaticResource BoolToVisibility}}" MaxWidth="180" MaxHeight="180" Stretch="Uniform" Margin="0,4,0,0"
                                                    Tapped="MixedImage_Tapped" />
                                             <Border Background="{StaticResource MetroSubtleBrush}" Padding="8,4" Visibility="{Binding IsVoice, Converter={StaticResource BoolToVisibility}}">
@@ -195,7 +196,7 @@
                     </Border>
                     <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
                             Visibility="{Binding IsTextOnly, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="15" Foreground="White" />
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="{Binding BubbleText, Source={StaticResource UiScale}}" Foreground="White" />
                     </Border>
                     <Border Background="{StaticResource MetroAccentBrush}" Padding="12,9" HorizontalAlignment="Right"
                             MaxWidth="280" Tapped="Forward_Tapped"
@@ -215,7 +216,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="models:MessageElement">
                                     <StackPanel Margin="0,2">
-                                        <TextBlock Text="{Binding Text}" Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}" TextWrapping="Wrap" FontSize="15" Foreground="White" />
+                                        <TextBlock Text="{Binding Text}" Visibility="{Binding IsText, Converter={StaticResource BoolToVisibility}}" TextWrapping="Wrap" FontSize="{Binding BubbleText, Source={StaticResource UiScale}}" Foreground="White" />
                                         <Image Source="{Binding Url}" Visibility="{Binding IsImage, Converter={StaticResource BoolToVisibility}}" MaxWidth="180" MaxHeight="180" Stretch="Uniform" Margin="0,4,0,0"
                                            Tapped="MixedImage_Tapped" />
                                         <Border Background="{StaticResource MetroSubtleBrush}" Padding="8,4" Visibility="{Binding IsVoice, Converter={StaticResource BoolToVisibility}}">
@@ -354,7 +355,7 @@
                     </Grid.ColumnDefinitions>
                     <Rectangle Grid.Column="0" Width="40" Height="40" VerticalAlignment="Top">
                         <Rectangle.Fill>
-                            <ImageBrush ImageSource="{Binding SenderAvatarPath}" Stretch="UniformToFill" />
+                            <ImageBrush ImageSource="{Binding SenderAvatarPath, Converter={StaticResource AvatarCache}}" Stretch="UniformToFill" />
                         </Rectangle.Fill>
                     </Rectangle>
                     <StackPanel Grid.Column="1" Margin="10,0,0,0" HorizontalAlignment="Left"
@@ -668,11 +669,11 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="16,8,0,4">
-                <TextBlock x:Name="TabEmoji" Text="表情" FontSize="15" Margin="0,0,20,0" Tapped="Tab_Emoji"
+                <TextBlock x:Name="TabEmoji" Text="表情" FontSize="{Binding BubbleText, Source={StaticResource UiScale}}" Margin="0,0,20,0" Tapped="Tab_Emoji"
                            Foreground="{StaticResource MetroPrimaryTextBrush}" />
-                <TextBlock x:Name="TabClassic" Text="经典" FontSize="15" Margin="0,0,20,0" Tapped="Tab_Classic"
+                <TextBlock x:Name="TabClassic" Text="经典" FontSize="{Binding BubbleText, Source={StaticResource UiScale}}" Margin="0,0,20,0" Tapped="Tab_Classic"
                            Foreground="{StaticResource MetroSecondaryTextBrush}" />
-                <TextBlock x:Name="TabFav" Text="收藏" FontSize="15" Tapped="Tab_Fav"
+                <TextBlock x:Name="TabFav" Text="收藏" FontSize="{Binding BubbleText, Source={StaticResource UiScale}}" Tapped="Tab_Fav"
                            Foreground="{StaticResource MetroSecondaryTextBrush}" />
             </StackPanel>
 

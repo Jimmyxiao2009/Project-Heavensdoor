@@ -68,5 +68,18 @@ namespace QQReborn.App.ViewModels
             // backend actually did (mock: true; real server: honestly false, it has no
             // API to accept a friend request) -- don't override that here.
         }
+
+        public async Task RejectAsync(FriendRequest request)
+        {
+            if (request == null || request.Handled) return;
+            try
+            {
+                await _chat.RejectFriendRequestAsync(request);
+            }
+            catch (Exception)
+            {
+                // Leave pending for retry.
+            }
+        }
     }
 }
