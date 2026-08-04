@@ -1785,6 +1785,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         var images = CollectImages(imageBase64, imagesBase64Node);
         var tempImagePaths = new List<string>();
         var tempVoicePaths = new List<string>();
+        var tempVideoPaths = new List<string>();
         foreach (var b64 in images)
         {
             var path = TryWriteTempMedia(b64, ".jpg");
@@ -1813,6 +1814,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
         {
             var b64 = !string.IsNullOrEmpty(fileBase64) ? fileBase64 : imageBase64;
             var videoPath = TryWriteTempMedia(b64!, ".mp4");
+            if (videoPath != null) tempVideoPaths.Add(videoPath);
             segments.Add(new JsonObject
             {
                 ["type"] = "video",
@@ -1940,6 +1942,10 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
                 try { if (File.Exists(p)) File.Delete(p); } catch { /* ignore */ }
             }
             foreach (var p in tempVoicePaths)
+            {
+                try { if (File.Exists(p)) File.Delete(p); } catch { /* ignore */ }
+            }
+            foreach (var p in tempVideoPaths)
             {
                 try { if (File.Exists(p)) File.Delete(p); } catch { /* ignore */ }
             }
@@ -2755,7 +2761,7 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             if (err != null)
             {
                 // Nickname may already have applied; still surface signature error.
-                if (nick == null) return (null, err);
+                return (null, err);
             }
             else
             {
@@ -3060,14 +3066,24 @@ public sealed class NapCatSessionManager : ISessionBackend, IAsyncDisposable
             return (null, "not-a-group");
         if (string.IsNullOrWhiteSpace(imageBase64)) return (null, "empty-image");
         var path = TryWriteTempMedia(imageBase64, ".jpg");
-        var fileRef = path ?? ("base64://" + StripDataUrl(imageBase64));
-        var (_, err) = await _api.CallAsync("set_group_portrait", new JsonObject
+        try
         {
-            ["group_id"] = peer,
-            ["file"] = fileRef,
-            ["cache"] = 1,
-        });
-        return err != null ? (null, err) : (new JsonObject { ["ok"] = true }, null);
+            var fileRef = path ?? ("base64://" + StripDataUrl(imageBase64));
+            var (_, err) = await _api.CallAsync("set_group_portrait", new JsonObject
+            {
+                ["group_id"] = peer,
+                ["file"] = fileRef,
+                ["cache"] = 1,
+            });
+            return err != null ? (null, err) : (new JsonObject { ["ok"] = true }, null);
+        }
+        finally
+        {
+            if (path != null)
+            {
+                try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore */ }
+            }
+        }
     }
 
     public async Task<(JsonObject? data, string? error)> SetGroupRemarkAsync(string conversationId, string remark)
